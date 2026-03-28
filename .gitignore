@@ -9,6 +9,7 @@ coverage
 .env
 *.env
 **/.env
+supabase/.temp
 apps/mobile/.expo
 apps/mobile/android
 apps/mobile/ios
