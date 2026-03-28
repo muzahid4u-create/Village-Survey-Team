@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+.expo
+.turbo
+.DS_Store
+coverage
+*.log
+.env
+*.env
+**/.env
+apps/mobile/.expo
+apps/mobile/android
+apps/mobile/ios

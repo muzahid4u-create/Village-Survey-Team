@@ -1,0 +1,33 @@
+{
+  "name": "@marda/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "tsx src/scripts/run-migrations.ts",
+    "seed": "tsx src/scripts/seed-sample-household.ts"
+  },
+  "dependencies": {
+    "@marda/shared": "0.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.13.1",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.13.10",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

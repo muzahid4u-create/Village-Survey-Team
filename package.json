@@ -1,0 +1,17 @@
+{
+  "name": "marda-rr-survey",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm --workspace @marda/api run dev",
+    "dev:web": "npm --workspace @marda/web run dev",
+    "dev:mobile": "npm --workspace @marda/mobile run start",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces"
+  }
+}
+

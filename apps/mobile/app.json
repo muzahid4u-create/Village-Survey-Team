@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Marda R&R Survey",
+    "slug": "marda-rr-survey",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light"
+  }
+}
+
