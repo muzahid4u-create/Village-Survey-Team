@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pool } from "../db/client";
+import { pool } from "../db/client.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,4 +57,3 @@ run()
   .finally(async () => {
     await pool.end();
   });
-

@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react";
 import type { HouseholdBundle } from "@marda/shared";
+import { API_BASE_URL } from "../api/client";
 
 interface DashboardPageProps {
   households: HouseholdBundle[];
+  canDownload: boolean;
 }
 
 function buildCounts(households: HouseholdBundle[], key: "casteCategory" | "occupation" | "incomeRange") {
@@ -22,7 +24,7 @@ function formatLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
-export function DashboardPage({ households }: DashboardPageProps) {
+export function DashboardPage({ households, canDownload }: DashboardPageProps) {
   const includedPersons = households.flatMap((household) =>
     household.persons.filter((person) => person.includeInSurvey !== false),
   );
@@ -88,8 +90,16 @@ export function DashboardPage({ households }: DashboardPageProps) {
           <p className="dashboard-subtitle">Plan, verify, classify, and export Marda village rehabilitation data from one screen.</p>
         </div>
         <div className="dashboard-actions">
-          <a className="primary-btn" href="http://localhost:4000/api/download-csv">Download CSV</a>
-          <a className="secondary-btn" href="http://localhost:4000/api/import-template">Import Template</a>
+          {canDownload ? (
+            <a className="primary-btn" href={`${API_BASE_URL}/download-csv`}>Download CSV</a>
+          ) : (
+            <button type="button" className="primary-btn is-disabled" disabled>Download CSV</button>
+          )}
+          {canDownload ? (
+            <a className="secondary-btn" href={`${API_BASE_URL}/import-template`}>Import Template</a>
+          ) : (
+            <button type="button" className="secondary-btn is-disabled" disabled>Import Template</button>
+          )}
         </div>
       </div>
 

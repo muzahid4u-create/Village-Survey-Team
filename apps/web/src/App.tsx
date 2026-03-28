@@ -1,12 +1,35 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { sampleHouseholdBundle, type HouseholdBundle } from "@marda/shared";
-import { deleteHousehold, fetchHouseholds, importExcel } from "./api/client";
+import { API_BASE_URL, deleteHousehold, fetchHouseholds, importExcel } from "./api/client";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HouseholdEntryPage } from "./pages/HouseholdEntryPage";
 import { HouseholdReviewPage } from "./pages/HouseholdReviewPage";
 
+type UserRole = "SUPER_ADMIN" | "ADMIN";
+type ActiveSection = "dashboard" | "households" | "add_survey" | "bulk_upload" | "reports";
+
+interface SessionUser {
+  loginId: string;
+  role: UserRole;
+  displayName: string;
+}
+
+const AUTH_STORAGE_KEY = "marda-rr-auth";
+const LOGIN_CREDENTIALS: Record<string, { password: string; role: UserRole; displayName: string }> = {
+  superadmin: {
+    password: "SuperAdmin@123",
+    role: "SUPER_ADMIN",
+    displayName: "Super Admin",
+  },
+  admin: {
+    password: "Admin@123",
+    role: "ADMIN",
+    displayName: "Admin",
+  },
+};
+
 export default function App() {
-  const [activeSection, setActiveSection] = useState<"dashboard" | "households" | "add_survey" | "bulk_upload" | "reports">("dashboard");
+  const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
   const [households, setHouseholds] = useState<HouseholdBundle[]>([sampleHouseholdBundle]);
   const [selectedHouseholdId, setSelectedHouseholdId] = useState(sampleHouseholdBundle.household.id);
   const [editingHousehold, setEditingHousehold] = useState<HouseholdBundle | null>(null);
@@ -14,12 +37,57 @@ export default function App() {
   const [bulkUploadMessage, setBulkUploadMessage] = useState("");
   const [bulkUploadError, setBulkUploadError] = useState("");
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => {
+    const saved = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    return saved ? (JSON.parse(saved) as SessionUser) : null;
+  });
+  const [loginId, setLoginId] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
     fetchHouseholds().then(setHouseholds).catch(() => {
       setHouseholds([sampleHouseholdBundle]);
     });
   }, []);
+
+  const canDownload = sessionUser?.role === "SUPER_ADMIN";
+  const canDelete = sessionUser?.role === "SUPER_ADMIN";
+
+  function persistSession(nextUser: SessionUser | null) {
+    setSessionUser(nextUser);
+    if (nextUser) {
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
+    } else {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  }
+
+  function handleLoginSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedLogin = loginId.trim().toLowerCase();
+    const credential = LOGIN_CREDENTIALS[normalizedLogin];
+
+    if (!credential || credential.password !== password) {
+      setLoginError("Invalid login ID or password.");
+      return;
+    }
+
+    persistSession({
+      loginId: normalizedLogin,
+      role: credential.role,
+      displayName: credential.displayName,
+    });
+    setLoginError("");
+    setPassword("");
+  }
+
+  function handleLogout() {
+    persistSession(null);
+    setLoginId("");
+    setPassword("");
+    setLoginError("");
+  }
 
   const filteredHouseholds = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -97,6 +165,44 @@ export default function App() {
     event.target.value = "";
   }
 
+  if (!sessionUser) {
+    return (
+      <main className="login-shell">
+        <section className="login-card">
+          <div className="login-brand">
+            <img src="/coal-india-1.png" alt="Coal India Limited" className="login-logo" />
+            <div>
+              <p className="eyebrow">WCL R&amp;R Survey</p>
+              <h1>Marda Village Rehabilitation &amp; Resettlement Survey</h1>
+              <p className="muted">Coal India Limited · Amalgamated Yekona-I &amp; II OC Mine</p>
+            </div>
+          </div>
+
+          <form className="login-form" onSubmit={handleLoginSubmit}>
+            <div className="login-field">
+              <label htmlFor="login-id">Login ID</label>
+              <input id="login-id" value={loginId} onChange={(event) => setLoginId(event.target.value)} placeholder="Enter login ID" />
+            </div>
+            <div className="login-field">
+              <label htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter password"
+              />
+            </div>
+            {loginError ? <p className="error-text">{loginError}</p> : null}
+            <button type="submit" className="primary-btn login-submit">
+              Sign In
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -134,18 +240,42 @@ export default function App() {
             Import Excel
             <input type="file" accept=".xlsx,.xls" onChange={handleImportChange} />
           </label>
-          <a className="sidebar-link" href="http://localhost:4000/api/import-template">
-            Download Import Template
-          </a>
-          <a className="sidebar-link" href="http://localhost:4000/api/download-csv">
-            Download CSV
-          </a>
-          <a className="sidebar-link" href="http://localhost:4000/api/download-pdf">
-            Download PDF
-          </a>
-          <a className="sidebar-link" href="http://localhost:4000/api/export-excel">
-            Export Excel
-          </a>
+          {canDownload ? (
+            <a className="sidebar-link" href={`${API_BASE_URL}/import-template`}>
+              Download Import Template
+            </a>
+          ) : (
+            <button type="button" className="sidebar-link is-disabled" disabled>
+              Download Import Template
+            </button>
+          )}
+          {canDownload ? (
+            <a className="sidebar-link" href={`${API_BASE_URL}/download-csv`}>
+              Download CSV
+            </a>
+          ) : (
+            <button type="button" className="sidebar-link is-disabled" disabled>
+              Download CSV
+            </button>
+          )}
+          {canDownload ? (
+            <a className="sidebar-link" href={`${API_BASE_URL}/download-pdf`}>
+              Download PDF
+            </a>
+          ) : (
+            <button type="button" className="sidebar-link is-disabled" disabled>
+              Download PDF
+            </button>
+          )}
+          {canDownload ? (
+            <a className="sidebar-link" href={`${API_BASE_URL}/export-excel`}>
+              Export Excel
+            </a>
+          ) : (
+            <button type="button" className="sidebar-link is-disabled" disabled>
+              Export Excel
+            </button>
+          )}
         </nav>
         <div className="legal-note">
           <p>
@@ -189,22 +319,43 @@ export default function App() {
             {searchQuery.trim() ? `${filteredHouseholds.length} result(s)` : `${households.length} households loaded`}
           </div>
           <div className="topbar-actions">
-            <a className="topbar-btn topbar-btn-primary" href="http://localhost:4000/api/download-csv">
-              Download CSV
-            </a>
-            <a className="topbar-btn" href="http://localhost:4000/api/download-pdf">
-              Download PDF
-            </a>
-            <a className="topbar-btn" href="http://localhost:4000/api/export-excel">
-              Export Excel
-            </a>
+            {canDownload ? (
+              <a className="topbar-btn topbar-btn-primary" href={`${API_BASE_URL}/download-csv`}>
+                Download CSV
+              </a>
+            ) : (
+              <button type="button" className="topbar-btn topbar-btn-primary is-disabled" disabled>
+                Download CSV
+              </button>
+            )}
+            {canDownload ? (
+              <a className="topbar-btn" href={`${API_BASE_URL}/download-pdf`}>
+                Download PDF
+              </a>
+            ) : (
+              <button type="button" className="topbar-btn is-disabled" disabled>
+                Download PDF
+              </button>
+            )}
+            {canDownload ? (
+              <a className="topbar-btn" href={`${API_BASE_URL}/export-excel`}>
+                Export Excel
+              </a>
+            ) : (
+              <button type="button" className="topbar-btn is-disabled" disabled>
+                Export Excel
+              </button>
+            )}
             <div className="topbar-user">
               <div className="topbar-avatar">RR</div>
               <div>
-                <strong>Village Survey Team</strong>
-                <span>Marda, WCL</span>
+                <strong>{sessionUser.displayName}</strong>
+                <span>{sessionUser.role === "SUPER_ADMIN" ? "Super Admin Access" : "Admin Access"}</span>
               </div>
             </div>
+            <button type="button" className="ghost-btn" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </header>
 
@@ -218,9 +369,15 @@ export default function App() {
                 <p className="muted">Use the import template, prepare all households in one sheet, and upload them in a single step.</p>
               </div>
               <div className="dashboard-actions">
-                <a className="secondary-btn" href="http://localhost:4000/api/import-template">
-                  Download Template
-                </a>
+                {canDownload ? (
+                  <a className="secondary-btn" href={`${API_BASE_URL}/import-template`}>
+                    Download Template
+                  </a>
+                ) : (
+                  <button type="button" className="secondary-btn is-disabled" disabled>
+                    Download Template
+                  </button>
+                )}
               </div>
             </div>
 
@@ -236,9 +393,15 @@ export default function App() {
               <div className="bulk-upload-card">
                 <strong>Required Format</strong>
                 <p>Use the template exactly, including house ID, member details, family ID, structure type, cattle shed, and valuation columns.</p>
-                <a className="topbar-btn" href="http://localhost:4000/api/export-excel">
-                  View Sample Export
-                </a>
+                {canDownload ? (
+                  <a className="topbar-btn" href={`${API_BASE_URL}/export-excel`}>
+                    View Sample Export
+                  </a>
+                ) : (
+                  <button type="button" className="topbar-btn is-disabled" disabled>
+                    View Sample Export
+                  </button>
+                )}
               </div>
             </div>
 
@@ -258,12 +421,14 @@ export default function App() {
             }}
           />
         ) : null}
-        {activeSection === "dashboard" || activeSection === "reports" ? <DashboardPage households={filteredHouseholds} /> : null}
+        {activeSection === "dashboard" || activeSection === "reports" ? <DashboardPage households={filteredHouseholds} canDownload={canDownload} /> : null}
         {(activeSection === "households" || activeSection === "dashboard" || activeSection === "reports") && activeHousehold ? (
           <HouseholdReviewPage
             household={activeHousehold}
             onSelectHousehold={setSelectedHouseholdId}
             households={filteredHouseholds}
+            canDelete={canDelete}
+            canDownload={canDownload}
             onEditHousehold={(bundle) => {
               setEditingHousehold(bundle);
               setActiveSection("add_survey");

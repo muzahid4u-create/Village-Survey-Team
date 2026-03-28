@@ -1,5 +1,5 @@
-import { CUTOFF_DATE, type MemberFamilyStatus } from "./enums";
-import type { FamilyGroup, PersonInput, PersonRecord } from "./types";
+import { CUTOFF_DATE, type MemberFamilyStatus } from "./enums.js";
+import type { FamilyGroup, PersonInput, PersonRecord } from "./types.js";
 
 export function getSuggestedFamilyStatus(person: PersonInput): MemberFamilyStatus {
   if (

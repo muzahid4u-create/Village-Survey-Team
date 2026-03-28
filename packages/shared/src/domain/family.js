@@ -63,6 +63,9 @@ export function buildPersonRecord(person) {
 }
 export function validateFamilyAssignments(persons) {
     const errors = [];
+    if (persons.length === 0) {
+        return errors;
+    }
     for (const person of persons) {
         if (person.finalFamilyStatus === "EXCLUDED" && person.familyGroupCode) {
             errors.push(`${person.fullName} is EXCLUDED and must not belong to any family group.`);
@@ -99,6 +102,9 @@ export function validateFamilyAssignments(persons) {
     return errors;
 }
 export function buildFamilyGroups(persons) {
+    if (persons.length === 0) {
+        return [];
+    }
     const grouped = new Map();
     for (const person of persons) {
         if (person.finalFamilyStatus === "EXCLUDED") {

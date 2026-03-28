@@ -1,6 +1,6 @@
 import { sampleHouseholdBundle } from "@marda/shared";
-import { pool } from "../db/client";
-import { householdRepository } from "../modules/households/household.repository";
+import { pool } from "../db/client.js";
+import { householdRepository } from "../modules/households/household.repository.js";
 
 async function run() {
   const existing = await householdRepository.getById(sampleHouseholdBundle.household.id);

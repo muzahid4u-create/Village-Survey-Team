@@ -14,7 +14,7 @@ import type {
   SurveyPropertyType,
   SyncOperation,
   SyncStatus,
-} from "./enums";
+} from "./enums.js";
 
 export interface Village {
   id: string;

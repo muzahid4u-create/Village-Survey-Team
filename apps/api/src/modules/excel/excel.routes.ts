@@ -6,7 +6,7 @@ import { Router, type Response } from "express";
 import multer from "multer";
 import PDFDocument from "pdfkit";
 import * as XLSX from "xlsx";
-import { householdService } from "../households/household.service";
+import { householdService } from "../households/household.service.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -248,7 +248,7 @@ function writePdf(
 function addWorkbookBranding(workbook: ExcelJS.Workbook, sheet: ExcelJS.Worksheet, title: string) {
   if (coalIndiaLogoBuffer) {
     const imageId = workbook.addImage({
-      buffer: coalIndiaLogoBuffer,
+      filename: coalIndiaLogoPath,
       extension: "png",
     });
 

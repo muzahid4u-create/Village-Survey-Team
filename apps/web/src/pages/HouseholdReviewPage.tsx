@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { HouseholdBundle } from "@marda/shared";
+import { API_BASE_URL } from "../api/client";
 
 interface HouseholdReviewPageProps {
   household: HouseholdBundle;
@@ -7,6 +8,8 @@ interface HouseholdReviewPageProps {
   onSelectHousehold(id: string): void;
   onEditHousehold(bundle: HouseholdBundle): void;
   onDeleteHousehold(bundle: HouseholdBundle): Promise<void>;
+  canDelete: boolean;
+  canDownload: boolean;
 }
 
 export function HouseholdReviewPage({
@@ -15,6 +18,8 @@ export function HouseholdReviewPage({
   onSelectHousehold,
   onEditHousehold,
   onDeleteHousehold,
+  canDelete,
+  canDownload,
 }: HouseholdReviewPageProps) {
   function formatValue(value?: string | number | boolean | null) {
     if (value === undefined || value === null || value === "") {
@@ -60,18 +65,36 @@ export function HouseholdReviewPage({
               </option>
             ))}
           </select>
-          <a className="ghost-btn" href={`http://localhost:4000/api/household/${household.household.id}/download-csv`}>
-            Download CSV
-          </a>
-          <a className="ghost-btn" href={`http://localhost:4000/api/household/${household.household.id}/download-pdf`}>
-            Download PDF
-          </a>
+          {canDownload ? (
+            <a className="ghost-btn" href={`${API_BASE_URL}/household/${household.household.id}/download-csv`}>
+              Download CSV
+            </a>
+          ) : (
+            <button type="button" className="ghost-btn is-disabled" disabled>
+              Download CSV
+            </button>
+          )}
+          {canDownload ? (
+            <a className="ghost-btn" href={`${API_BASE_URL}/household/${household.household.id}/download-pdf`}>
+              Download PDF
+            </a>
+          ) : (
+            <button type="button" className="ghost-btn is-disabled" disabled>
+              Download PDF
+            </button>
+          )}
           <button type="button" className="ghost-btn" onClick={() => onEditHousehold(household)}>
             Edit
           </button>
-          <button type="button" className="ghost-btn" onClick={() => void onDeleteHousehold(household)}>
-            Remove
-          </button>
+          {canDelete ? (
+            <button type="button" className="ghost-btn" onClick={() => void onDeleteHousehold(household)}>
+              Remove
+            </button>
+          ) : (
+            <button type="button" className="ghost-btn is-disabled" disabled>
+              Remove
+            </button>
+          )}
         </div>
       </div>
 

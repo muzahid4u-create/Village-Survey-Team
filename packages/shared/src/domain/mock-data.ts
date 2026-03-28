@@ -1,6 +1,6 @@
-import { buildFamilyGroups, buildPersonRecord } from "./family";
-import { buildLandDetails, buildValuation } from "./calculations";
-import type { HouseholdBundle } from "./types";
+import { buildFamilyGroups, buildPersonRecord } from "./family.js";
+import { buildLandDetails, buildValuation } from "./calculations.js";
+import type { HouseholdBundle } from "./types.js";
 
 export const sampleHouseholdBundle: HouseholdBundle = (() => {
   const household = {

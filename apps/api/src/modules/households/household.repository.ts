@@ -8,7 +8,7 @@ import {
   type Valuation,
 } from "@marda/shared";
 import type { PoolClient } from "pg";
-import { pool, withTransaction } from "../../db/client";
+import { pool, withTransaction } from "../../db/client.js";
 
 type HouseholdRow = {
   id: string;

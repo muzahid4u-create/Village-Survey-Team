@@ -6,8 +6,8 @@ import {
   validateFamilyAssignments,
   type HouseholdBundle,
 } from "@marda/shared";
-import type { CreateHouseholdBundleInput } from "./household.schemas";
-import { householdRepository } from "./household.repository";
+import type { CreateHouseholdBundleInput } from "./household.schemas.js";
+import { householdRepository } from "./household.repository.js";
 
 export class HouseholdService {
   async list(): Promise<HouseholdBundle[]> {
@@ -55,11 +55,22 @@ export class HouseholdService {
 
     const bundle: HouseholdBundle = {
       household: {
-        ...input.household,
+        id: input.household.id,
+        villageId: input.household.villageId,
+        houseId: input.household.houseId,
+        surveyNumber: input.household.surveyNumber,
+        propertyId: input.household.propertyId,
         surveyPropertyType: input.household.surveyPropertyType ?? "RESIDENTIAL",
         hasResidentFamily,
         headPersonName: primaryOwner?.fullName ?? input.household.headPersonName ?? "Unknown",
         landOwnerName: primaryOwner?.fullName ?? input.household.landOwnerName ?? "Unknown",
+        addressText: input.household.addressText,
+        locality: input.household.locality,
+        gpsLatitude: input.household.gpsLatitude,
+        gpsLongitude: input.household.gpsLongitude,
+        status: input.household.status,
+        isLocked: input.household.isLocked,
+        remarks: input.household.remarks,
       },
       persons,
       familyGroups,

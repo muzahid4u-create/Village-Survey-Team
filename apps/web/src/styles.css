@@ -35,6 +35,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+#root {
+  min-height: 100vh;
+}
+
 a {
   color: inherit;
 }
@@ -45,6 +49,83 @@ a {
   gap: 18px;
   min-height: 100vh;
   padding: 22px;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.login-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 24px;
+  padding: 30px;
+  border-radius: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(250, 247, 240, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.login-brand {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.login-brand h1 {
+  margin: 0 0 8px;
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+
+.login-logo {
+  width: 120px;
+  height: 120px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #fffdf7 0%, #f4ecd7 100%);
+  padding: 10px;
+  object-fit: contain;
+  border: 1px solid rgba(220, 179, 79, 0.38);
+  box-shadow: 0 10px 20px rgba(20, 62, 45, 0.12);
+}
+
+.login-form {
+  display: grid;
+  gap: 16px;
+}
+
+.login-field {
+  display: grid;
+  gap: 8px;
+}
+
+.login-field label {
+  font-weight: 700;
+  color: var(--green-900);
+}
+
+.login-field input {
+  min-height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.92);
+  font: inherit;
+  outline: none;
+}
+
+.login-field input:focus {
+  border-color: rgba(34, 100, 71, 0.35);
+  box-shadow: 0 0 0 4px rgba(34, 100, 71, 0.08);
+}
+
+.login-submit {
+  width: fit-content;
 }
 
 .sidebar {
@@ -148,6 +229,18 @@ a {
   border-color: rgba(34, 100, 71, 0.16);
   transform: translateX(2px);
   box-shadow: inset 3px 0 0 rgba(34, 100, 71, 0.8);
+}
+
+.sidebar-link.is-disabled,
+.topbar-btn.is-disabled,
+.primary-btn.is-disabled,
+.secondary-btn.is-disabled,
+.ghost-btn.is-disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+  box-shadow: none;
 }
 
 .sidebar-file input {

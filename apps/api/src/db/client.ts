@@ -1,8 +1,11 @@
 import { Pool, type PoolClient } from "pg";
-import { env } from "../config/env";
+import { env } from "../config/env.js";
 
 export const pool = new Pool({
   connectionString: env.databaseUrl,
+  max: env.databaseUrl.includes("supabase.com") ? 1 : 10,
+  idleTimeoutMillis: 5_000,
+  connectionTimeoutMillis: 10_000,
   ssl: env.databaseUrl.includes("supabase.com")
     ? {
         rejectUnauthorized: false,

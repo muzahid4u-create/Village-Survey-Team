@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { householdBundleSchema } from "./household.schemas";
-import { householdService } from "./household.service";
+import { householdBundleSchema } from "./household.schemas.js";
+import { householdService } from "./household.service.js";
 
 export const householdRouter = Router();
 

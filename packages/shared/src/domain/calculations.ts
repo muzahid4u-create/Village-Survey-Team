@@ -1,4 +1,4 @@
-import type { LandDetails, Valuation } from "./types";
+import type { LandDetails, Valuation } from "./types.js";
 
 export function calculateTotalArea(builtUpAreaSqm: number, openLandAreaSqm: number): number {
   return builtUpAreaSqm + openLandAreaSqm;

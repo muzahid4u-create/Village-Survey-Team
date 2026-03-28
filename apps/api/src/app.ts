@@ -1,8 +1,8 @@
 import cors from "cors";
 import express from "express";
-import { excelRouter } from "./modules/excel/excel.routes";
-import { householdRouter } from "./modules/households/household.routes";
-import { householdService } from "./modules/households/household.service";
+import { excelRouter } from "./modules/excel/excel.routes.js";
+import { householdRouter } from "./modules/households/household.routes.js";
+import { householdService } from "./modules/households/household.service.js";
 
 export function createApp() {
   const app = express();
@@ -10,13 +10,16 @@ export function createApp() {
   app.use(cors());
   app.use(express.json());
 
-  app.get("/health", (_request, response) => {
+  const healthHandler = (_request: express.Request, response: express.Response) => {
     response.json({
       ok: true,
       village: "Marda",
       storage: "postgresql",
     });
-  });
+  };
+
+  app.get("/health", healthHandler);
+  app.get("/api/health", healthHandler);
 
   app.get("/api/dashboard/summary", async (_request, response, next) => {
     try {
