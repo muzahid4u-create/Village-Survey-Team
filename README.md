@@ -1,4 +1,6 @@
-# Marda Village R&R Survey App
+# Village-Survey-Team
+
+## Marda Village R&R Survey App
 
 This workspace contains a starter monorepo and developer handoff for a Resettlement and Rehabilitation (R&R) survey system for Marda village under the CBA Act, 1957.
 
@@ -29,7 +31,7 @@ The system is designed to:
 - Mobile app: React Native
 - Web admin: React
 - Backend API: Node.js with NestJS or Express
-- Database: PostgreSQL
+- Database: PostgreSQL / Supabase Postgres
 - Local mobile storage: SQLite
 - File storage: S3-compatible object storage
 
@@ -59,19 +61,18 @@ packages/
 
 ## Local Setup
 
-This environment did not have `node` or `npm`, so dependencies could not be installed here. To run the starter on a development machine:
+To run the project on a development machine:
 
 1. install Node.js 20 or newer
-2. create a PostgreSQL database, for example `marda_rr`
-3. copy [apps/api/.env.example](/Users/mujju/Desktop/marda%20village/apps/api/.env.example) to `apps/api/.env` and set `DATABASE_URL`
+2. create a PostgreSQL database, for example `marda_rr`, or use Supabase Postgres
+3. copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL`
 4. run `npm install`
 5. run `npm --workspace @marda/api run migrate`
-6. run `npm --workspace @marda/api run seed`
-7. run `npm run dev:api`
-8. run `npm run dev:web`
-9. run `npm run dev:mobile`
+6. run `npm run dev:api`
+7. run `npm run dev:web`
+8. run `npm run dev:mobile`
 
-## Recommended Next Implementation Steps
+## Recommended Next Steps
 
 1. replace mobile in-memory storage with SQLite and file upload queueing
 2. add authentication and role-based route guards
