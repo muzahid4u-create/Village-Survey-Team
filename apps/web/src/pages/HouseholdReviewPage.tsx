@@ -132,6 +132,8 @@ export function HouseholdReviewPage({
         <div className="review-card">
           <h3>Valuation</h3>
           <p>Property Type: {formatValue(household.household.surveyPropertyType ?? "RESIDENTIAL")}</p>
+          <p>Ownership Pattern: {formatValue(household.household.ownershipPattern ?? "SINGLE_HOUSE")}</p>
+          <p>Linked House IDs: {formatValue(household.household.linkedHouseIds)}</p>
           <p>Resident Family: {household.household.hasResidentFamily === false ? "No" : "Yes"}</p>
           <p>Built-up Area: {household.landDetails?.builtUpAreaSqm ?? 0} sqm</p>
           <p>Open Land Area: {household.landDetails?.openLandAreaSqm ?? 0} sqm</p>
@@ -166,6 +168,7 @@ export function HouseholdReviewPage({
                   <th>Marriage Date</th>
                   <th>Religion</th>
                   <th>Category</th>
+                  <th>Category Detail</th>
                   <th>Occupation</th>
                   <th>Education</th>
                   <th>Income Range</th>
@@ -190,6 +193,7 @@ export function HouseholdReviewPage({
                     <td>{formatValue(person.marriageDate)}</td>
                     <td>{formatValue(person.religion)}</td>
                     <td>{formatValue(person.casteCategory)}</td>
+                    <td>{formatValue(person.otherCasteCategoryDetail)}</td>
                     <td>{formatValue(person.occupation)}</td>
                     <td>{formatValue(person.education)}</td>
                     <td>{formatValue(person.incomeRange)}</td>

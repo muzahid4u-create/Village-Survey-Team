@@ -39,6 +39,12 @@ export type Religion = "HINDU" | "MUSLIM" | "CHRISTIAN" | "SIKH" | "BUDDHIST" | 
 
 export type CasteCategory = "GENERAL" | "OBC" | "SC" | "ST" | "OTHERS";
 
+export type OwnershipPattern =
+  | "SINGLE_HOUSE"
+  | "MULTIPLE_HOUSE_IDS"
+  | "HOUSE_AND_PLOT"
+  | "MULTIPLE_HOUSE_IDS_AND_PLOT";
+
 export type Occupation =
   | "EMPLOYED"
   | "AGRICULTURE"
@@ -49,7 +55,16 @@ export type Occupation =
   | "UNEMPLOYED"
   | "OTHER";
 
-export type Education = "LESS_THAN_10TH" | "10TH" | "12TH" | "ITI" | "DIPLOMA" | "DEGREE" | "MASTERS" | "OTHERS";
+export type Education =
+  | "SCHOOL_GOING_CHILD"
+  | "LESS_THAN_10TH"
+  | "10TH"
+  | "12TH"
+  | "ITI"
+  | "DIPLOMA"
+  | "DEGREE"
+  | "MASTERS"
+  | "OTHERS";
 
 export type IncomeRange =
   | "0-5_LAKH"

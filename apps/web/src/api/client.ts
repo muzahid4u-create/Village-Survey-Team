@@ -13,6 +13,8 @@ export interface CreateHouseholdPayload {
     villageId: string;
     houseId: string;
     surveyNumber?: string;
+    linkedHouseIds?: string;
+    ownershipPattern?: "SINGLE_HOUSE" | "MULTIPLE_HOUSE_IDS" | "HOUSE_AND_PLOT" | "MULTIPLE_HOUSE_IDS_AND_PLOT";
     surveyPropertyType?: "RESIDENTIAL" | "EMPTY_PLOT" | "TEMPORARY_STRUCTURE" | "SHOP" | "OTHER_NON_RESIDENTIAL";
     hasResidentFamily?: boolean;
     propertyId?: string;

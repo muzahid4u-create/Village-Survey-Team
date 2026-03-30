@@ -8,6 +8,7 @@ import type {
   IncomeRange,
   MaritalStatus,
   MemberFamilyStatus,
+  OwnershipPattern,
   Occupation,
   RelationToLandOwner,
   Religion,
@@ -31,6 +32,8 @@ export interface Household {
   houseId: string;
   surveyNumber?: string;
   propertyId?: string;
+  linkedHouseIds?: string;
+  ownershipPattern?: OwnershipPattern;
   headPersonName: string;
   landOwnerName: string;
   surveyPropertyType?: SurveyPropertyType;
@@ -58,6 +61,7 @@ export interface PersonInput {
   dependentOnLandOwner?: boolean;
   religion?: Religion;
   casteCategory?: CasteCategory;
+  otherCasteCategoryDetail?: string;
   annualIncome?: number;
   occupation?: Occupation;
   education?: Education;

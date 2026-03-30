@@ -97,7 +97,9 @@ export default function App() {
       const householdMatches =
         household.household.houseId.toLowerCase().includes(query) ||
         (household.household.surveyNumber ?? "").toLowerCase().includes(query) ||
-        (household.household.locality ?? "").toLowerCase().includes(query);
+        (household.household.locality ?? "").toLowerCase().includes(query) ||
+        (household.household.linkedHouseIds ?? "").toLowerCase().includes(query) ||
+        (household.household.ownershipPattern ?? "").toLowerCase().includes(query);
 
       const familyMatches = household.familyGroups.some(
         (group) =>
@@ -112,6 +114,7 @@ export default function App() {
           person.gender,
           person.religion,
           person.casteCategory,
+          person.otherCasteCategoryDetail,
           person.occupation,
           person.education,
           person.familyGroupCode,

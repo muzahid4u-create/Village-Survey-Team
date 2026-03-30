@@ -60,6 +60,8 @@ export class HouseholdService {
         houseId: input.household.houseId,
         surveyNumber: input.household.surveyNumber,
         propertyId: input.household.propertyId,
+        linkedHouseIds: input.household.linkedHouseIds,
+        ownershipPattern: input.household.ownershipPattern,
         surveyPropertyType: input.household.surveyPropertyType ?? "RESIDENTIAL",
         hasResidentFamily,
         headPersonName: primaryOwner?.fullName ?? input.household.headPersonName ?? "Unknown",

@@ -10,6 +10,7 @@ import {
   type HouseholdBundle,
   type IncomeRange,
   type MaritalStatus,
+  type OwnershipPattern,
   type Occupation,
   type PersonInput,
   type RelationToLandOwner,
@@ -38,6 +39,7 @@ interface MemberDraft {
   gender: "MALE" | "FEMALE" | "OTHER";
   religion: Religion;
   casteCategory: CasteCategory;
+  otherCasteCategoryDetail: string;
   occupation: Occupation;
   education: Education;
   incomeRange: IncomeRange;
@@ -65,6 +67,7 @@ function createMemberDraft(): MemberDraft {
     gender: "MALE",
     religion: "HINDU",
     casteCategory: "GENERAL",
+    otherCasteCategoryDetail: "",
     occupation: "UNEMPLOYED",
     education: "LESS_THAN_10TH",
     incomeRange: "0-5_LAKH",
@@ -88,6 +91,8 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
   const [houseId, setHouseId] = useState("");
   const [surveyNumber, setSurveyNumber] = useState("");
   const [locality, setLocality] = useState("");
+  const [linkedHouseIds, setLinkedHouseIds] = useState("");
+  const [ownershipPattern, setOwnershipPattern] = useState<OwnershipPattern>("SINGLE_HOUSE");
   const [surveyPropertyType, setSurveyPropertyType] = useState<SurveyPropertyType>("RESIDENTIAL");
   const [hasResidentFamily, setHasResidentFamily] = useState(true);
   const [recordedOwnerName, setRecordedOwnerName] = useState("");
@@ -109,6 +114,8 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
     setHouseId(editingHousehold.household.houseId);
     setSurveyNumber(editingHousehold.household.surveyNumber ?? "");
     setLocality(editingHousehold.household.locality ?? "");
+    setLinkedHouseIds(editingHousehold.household.linkedHouseIds ?? "");
+    setOwnershipPattern(editingHousehold.household.ownershipPattern ?? "SINGLE_HOUSE");
     setSurveyPropertyType(editingHousehold.household.surveyPropertyType ?? "RESIDENTIAL");
     setHasResidentFamily(editingHousehold.household.hasResidentFamily ?? true);
     setRecordedOwnerName(editingHousehold.household.landOwnerName ?? "");
@@ -141,6 +148,7 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
         gender: person.gender ?? "MALE",
         religion: person.religion ?? "HINDU",
         casteCategory: person.casteCategory ?? "GENERAL",
+        otherCasteCategoryDetail: person.otherCasteCategoryDetail ?? "",
         occupation: person.occupation ?? "UNEMPLOYED",
         education: person.education ?? "LESS_THAN_10TH",
         incomeRange: person.incomeRange ?? "0-5_LAKH",
@@ -155,6 +163,8 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
     setHouseId("");
     setSurveyNumber("");
     setLocality("");
+    setLinkedHouseIds("");
+    setOwnershipPattern("SINGLE_HOUSE");
     setSurveyPropertyType("RESIDENTIAL");
     setHasResidentFamily(true);
     setRecordedOwnerName("");
@@ -191,6 +201,10 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
 
         if (isOwnerOrSpouse) {
           next.isDivorced = false;
+        }
+
+        if (next.casteCategory !== "OTHERS") {
+          next.otherCasteCategoryDetail = "";
         }
 
         if (!next.includeInSurvey) {
@@ -256,6 +270,7 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
           gender: member.gender,
           religion: member.religion,
           casteCategory: member.casteCategory,
+          otherCasteCategoryDetail: member.casteCategory === "OTHERS" ? member.otherCasteCategoryDetail || undefined : undefined,
           occupation: member.occupation,
           education: member.education,
           incomeRange: member.incomeRange,
@@ -277,6 +292,8 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
           villageId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
           houseId,
           surveyNumber: surveyNumber || undefined,
+          linkedHouseIds: linkedHouseIds || undefined,
+          ownershipPattern,
           surveyPropertyType,
           hasResidentFamily,
           headPersonName: !hasResidentFamily ? recordedOwnerName || "Unknown" : undefined,
@@ -363,6 +380,23 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
           <label>
             Survey Number
             <input value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value)} placeholder="Survey no." />
+          </label>
+          <label>
+            Ownership Pattern
+            <select value={ownershipPattern} onChange={(event) => setOwnershipPattern(event.target.value as OwnershipPattern)}>
+              <option value="SINGLE_HOUSE">Single House</option>
+              <option value="MULTIPLE_HOUSE_IDS">Multiple House IDs</option>
+              <option value="HOUSE_AND_PLOT">House and Plot</option>
+              <option value="MULTIPLE_HOUSE_IDS_AND_PLOT">Multiple House IDs and Plot</option>
+            </select>
+          </label>
+          <label>
+            Linked / Additional House IDs
+            <input
+              value={linkedHouseIds}
+              onChange={(event) => setLinkedHouseIds(event.target.value)}
+              placeholder="Example: MAR-0003, MAR-0004"
+            />
           </label>
           <label>
             Locality
@@ -652,6 +686,16 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
                       <option value="OTHERS">Others</option>
                     </select>
                   </label>
+                  {member.casteCategory === "OTHERS" ? (
+                    <label>
+                      Category Detail
+                      <input
+                        value={member.otherCasteCategoryDetail}
+                        onChange={(event) => updateMember(member.id, { otherCasteCategoryDetail: event.target.value })}
+                        placeholder="Enter category manually"
+                      />
+                    </label>
+                  ) : null}
                   <label>
                     Occupation
                     <select
@@ -674,6 +718,7 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
                       value={member.education}
                       onChange={(event) => updateMember(member.id, { education: event.target.value as Education })}
                     >
+                      <option value="SCHOOL_GOING_CHILD">School Going Child</option>
                       <option value="LESS_THAN_10TH">Less Than 10th Class</option>
                       <option value="10TH">10th</option>
                       <option value="12TH">12th</option>

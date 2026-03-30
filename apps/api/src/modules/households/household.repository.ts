@@ -16,6 +16,8 @@ type HouseholdRow = {
   house_id: string;
   survey_number: string | null;
   property_id: string | null;
+  linked_house_ids: string | null;
+  ownership_pattern: Household["ownershipPattern"] | null;
   head_person_name: string;
   land_owner_name: string;
   survey_property_type: Household["surveyPropertyType"] | null;
@@ -43,6 +45,7 @@ type PersonRow = {
   dependent_on_land_owner: boolean;
   religion: PersonRecord["religion"] | null;
   caste_category: string | null;
+  other_caste_category_detail: string | null;
   annual_income: string | null;
   occupation: PersonRecord["occupation"] | null;
   education: PersonRecord["education"] | null;
@@ -92,6 +95,8 @@ function mapHousehold(row: HouseholdRow): Household {
     houseId: row.house_id,
     surveyNumber: row.survey_number ?? undefined,
     propertyId: row.property_id ?? undefined,
+    linkedHouseIds: row.linked_house_ids ?? undefined,
+    ownershipPattern: row.ownership_pattern ?? undefined,
     headPersonName: row.head_person_name,
     landOwnerName: row.land_owner_name,
     surveyPropertyType: row.survey_property_type ?? "RESIDENTIAL",
@@ -121,6 +126,7 @@ function mapPerson(row: PersonRow): PersonRecord {
     dependentOnLandOwner: row.dependent_on_land_owner,
     religion: row.religion ?? undefined,
     casteCategory: (row.caste_category as PersonRecord["casteCategory"]) ?? undefined,
+    otherCasteCategoryDetail: row.other_caste_category_detail ?? undefined,
     annualIncome: row.annual_income ? Number(row.annual_income) : undefined,
     occupation: row.occupation ?? undefined,
     education: row.education ?? undefined,
@@ -184,9 +190,9 @@ export class HouseholdRepository {
       await client.query(
         `
           update households
-          set village_id = $2, house_id = $3, survey_number = $4, property_id = $5,
-              head_person_name = $6, land_owner_name = $7, survey_property_type = $8, has_resident_family = $9,
-              address_text = $10, locality = $11, gps_latitude = $12, gps_longitude = $13, status = $14, is_locked = $15, remarks = $16,
+          set village_id = $2, house_id = $3, survey_number = $4, property_id = $5, linked_house_ids = $6, ownership_pattern = $7,
+              head_person_name = $8, land_owner_name = $9, survey_property_type = $10, has_resident_family = $11,
+              address_text = $12, locality = $13, gps_latitude = $14, gps_longitude = $15, status = $16, is_locked = $17, remarks = $18,
               updated_at = now()
           where id = $1
         `,
@@ -196,6 +202,8 @@ export class HouseholdRepository {
           bundle.household.houseId,
           bundle.household.surveyNumber ?? null,
           bundle.household.propertyId ?? null,
+          bundle.household.linkedHouseIds ?? null,
+          bundle.household.ownershipPattern ?? null,
           bundle.household.headPersonName,
           bundle.household.landOwnerName,
           bundle.household.surveyPropertyType ?? "RESIDENTIAL",
@@ -214,12 +222,12 @@ export class HouseholdRepository {
         `
           insert into households (
             id, village_id, house_id, survey_number, property_id, head_person_name,
-            land_owner_name, survey_property_type, has_resident_family, address_text, locality, gps_latitude, gps_longitude,
+            linked_house_ids, ownership_pattern, land_owner_name, survey_property_type, has_resident_family, address_text, locality, gps_latitude, gps_longitude,
             status, is_locked, remarks
           ) values (
             $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10, $11, $12, $13,
-            $14, $15, $16
+            $7, $8, $9, $10, $11, $12, $13, $14, $15,
+            $16, $17, $18
           )
         `,
         [
@@ -229,6 +237,8 @@ export class HouseholdRepository {
           bundle.household.surveyNumber ?? null,
           bundle.household.propertyId ?? null,
           bundle.household.headPersonName,
+          bundle.household.linkedHouseIds ?? null,
+          bundle.household.ownershipPattern ?? null,
           bundle.household.landOwnerName,
           bundle.household.surveyPropertyType ?? "RESIDENTIAL",
           bundle.household.hasResidentFamily ?? true,
@@ -249,15 +259,15 @@ export class HouseholdRepository {
             insert into persons (
               id, household_id, full_name, gender, age, relation_to_land_owner,
               marital_status, marriage_date, is_divorced, include_in_survey, dependent_on_land_owner,
-              religion, caste_category, annual_income, occupation, education, income_range,
+              religion, caste_category, other_caste_category_detail, annual_income, occupation, education, income_range,
               aadhaar_number, voter_id_number, mobile_number,
               system_suggested_status, manual_family_status, final_family_status, family_group_code
             ) values (
               $1, $2, $3, $4, $5, $6,
               $7, $8, $9, $10, $11,
-              $12, $13, $14, $15, $16, $17,
-              $18, $19, $20,
-              $21, $22, $23, $24
+              $12, $13, $14, $15, $16, $17, $18,
+              $19, $20, $21,
+              $22, $23, $24, $25
             )
           `,
           [
@@ -274,6 +284,7 @@ export class HouseholdRepository {
             person.dependentOnLandOwner ?? false,
             person.religion ?? null,
             person.casteCategory ?? null,
+            person.otherCasteCategoryDetail ?? null,
             person.annualIncome ?? null,
             person.occupation ?? null,
             person.education ?? null,
