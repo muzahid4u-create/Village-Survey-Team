@@ -26,6 +26,8 @@ function flattenHouseholdRows(households: Awaited<ReturnType<typeof householdSer
       .filter((person) => person.includeInSurvey !== false)
       .map((person) => ({
         householdId: household.household.houseId,
+        linkedHouseIds: household.household.linkedHouseIds ?? "",
+        ownershipPattern: household.household.ownershipPattern ?? "",
         name: person.fullName,
         relation: person.relationToLandOwner,
         gender: person.gender ?? "",
@@ -34,6 +36,7 @@ function flattenHouseholdRows(households: Awaited<ReturnType<typeof householdSer
         marriageDate: person.marriageDate ?? "",
         religion: person.religion ?? "",
         category: person.casteCategory ?? "",
+        categoryDetail: person.otherCasteCategoryDetail ?? "",
         occupation: person.occupation ?? "",
         education: person.education ?? "",
         incomeRange: person.incomeRange ?? "",
@@ -54,6 +57,8 @@ function flattenHouseholdRows(households: Awaited<ReturnType<typeof householdSer
 function writeCsv(response: Response, fileName: string, rows: ReturnType<typeof flattenHouseholdRows>) {
   const headers = [
     "House ID",
+    "Linked House IDs",
+    "Ownership Pattern",
     "Name",
     "Relation",
     "Gender",
@@ -62,6 +67,7 @@ function writeCsv(response: Response, fileName: string, rows: ReturnType<typeof 
     "Marriage Date",
     "Religion",
     "Category",
+    "Category Detail",
     "Occupation",
     "Education",
     "Income Range",
@@ -81,6 +87,8 @@ function writeCsv(response: Response, fileName: string, rows: ReturnType<typeof 
     ...rows.map((row) =>
       [
         row.householdId,
+        row.linkedHouseIds,
+        row.ownershipPattern,
         row.name,
         row.relation,
         row.gender,
@@ -89,6 +97,7 @@ function writeCsv(response: Response, fileName: string, rows: ReturnType<typeof 
         row.marriageDate,
         row.religion,
         row.category,
+        row.categoryDetail,
         row.occupation,
         row.education,
         row.incomeRange,
@@ -126,12 +135,15 @@ function writePdf(
 
   const columns = [
     { label: "House", key: "householdId", width: 55 },
+    { label: "Linked IDs", key: "linkedHouseIds", width: 78 },
+    { label: "Ownership", key: "ownershipPattern", width: 84 },
     { label: "Name", key: "name", width: 88 },
     { label: "Relation", key: "relation", width: 86 },
     { label: "Gender", key: "gender", width: 42 },
     { label: "Age", key: "age", width: 32 },
     { label: "Religion", key: "religion", width: 55 },
     { label: "Category", key: "category", width: 52 },
+    { label: "Cat. Detail", key: "categoryDetail", width: 70 },
     { label: "Occupation", key: "occupation", width: 70 },
     { label: "Education", key: "education", width: 56 },
     { label: "Income", key: "incomeRange", width: 66 },
@@ -276,6 +288,8 @@ excelRouter.get("/import-template", async (_request, response) => {
 
   sheet.columns = [
     { header: "House ID", key: "houseId", width: 14 },
+    { header: "Linked House IDs", key: "linkedHouseIds", width: 24 },
+    { header: "Ownership Pattern", key: "ownershipPattern", width: 28 },
     { header: "Name", key: "name", width: 24 },
     { header: "Relation", key: "relation", width: 28 },
     { header: "Gender", key: "gender", width: 12 },
@@ -284,6 +298,7 @@ excelRouter.get("/import-template", async (_request, response) => {
     { header: "Marriage Date", key: "marriageDate", width: 18 },
     { header: "Religion", key: "religion", width: 14 },
     { header: "Category", key: "category", width: 12 },
+    { header: "Category Detail", key: "categoryDetail", width: 22 },
     { header: "Occupation", key: "occupation", width: 18 },
     { header: "Education", key: "education", width: 16 },
     { header: "Income Range", key: "incomeRange", width: 18 },
@@ -302,6 +317,8 @@ excelRouter.get("/import-template", async (_request, response) => {
 
   sheet.addRow({
     houseId: "H001",
+    linkedHouseIds: "H001A, H001B",
+    ownershipPattern: "HOUSE_AND_PLOT",
     name: "Rahim Khan",
     relation: "PRIMARY_LAND_OWNER",
     gender: "MALE",
@@ -310,6 +327,7 @@ excelRouter.get("/import-template", async (_request, response) => {
     marriageDate: "",
     religion: "MUSLIM",
     category: "OBC",
+    categoryDetail: "",
     occupation: "AGRICULTURE",
     education: "12TH",
     incomeRange: "5-10_LAKH",
@@ -328,6 +346,8 @@ excelRouter.get("/import-template", async (_request, response) => {
 
   sheet.addRow({
     houseId: "H001",
+    linkedHouseIds: "H001A, H001B",
+    ownershipPattern: "HOUSE_AND_PLOT",
     name: "Fatima",
     relation: "PRIMARY_LAND_OWNER_SPOUSE",
     gender: "FEMALE",
@@ -336,6 +356,7 @@ excelRouter.get("/import-template", async (_request, response) => {
     marriageDate: "",
     religion: "MUSLIM",
     category: "OBC",
+    categoryDetail: "",
     occupation: "HOUSE_WIFE",
     education: "10TH",
     incomeRange: "0-5_LAKH",
@@ -354,6 +375,8 @@ excelRouter.get("/import-template", async (_request, response) => {
 
   sheet.addRow({
     houseId: "H001",
+    linkedHouseIds: "H001A, H001B",
+    ownershipPattern: "HOUSE_AND_PLOT",
     name: "Imran",
     relation: "SON",
     gender: "MALE",
@@ -362,6 +385,7 @@ excelRouter.get("/import-template", async (_request, response) => {
     marriageDate: "2018-01-01",
     religion: "MUSLIM",
     category: "OBC",
+    categoryDetail: "",
     occupation: "EMPLOYED",
     education: "DEGREE",
     incomeRange: "10-15_LAKH",
@@ -397,6 +421,8 @@ excelRouter.get("/export-excel", async (_request, response) => {
 
   sheet.columns = [
     { header: "House ID", key: "houseId", width: 14 },
+    { header: "Linked House IDs", key: "linkedHouseIds", width: 24 },
+    { header: "Ownership Pattern", key: "ownershipPattern", width: 28 },
     { header: "Name", key: "name", width: 24 },
     { header: "Relation", key: "relation", width: 28 },
     { header: "Gender", key: "gender", width: 12 },
@@ -405,6 +431,7 @@ excelRouter.get("/export-excel", async (_request, response) => {
     { header: "Marriage Date", key: "marriageDate", width: 18 },
     { header: "Religion", key: "religion", width: 14 },
     { header: "Category", key: "category", width: 12 },
+    { header: "Category Detail", key: "categoryDetail", width: 22 },
     { header: "Occupation", key: "occupation", width: 18 },
     { header: "Education", key: "education", width: 16 },
     { header: "Income Range", key: "incomeRange", width: 18 },
@@ -427,6 +454,8 @@ excelRouter.get("/export-excel", async (_request, response) => {
       .forEach((person) => {
         sheet.addRow({
           houseId: household.household.houseId,
+          linkedHouseIds: household.household.linkedHouseIds ?? "",
+          ownershipPattern: household.household.ownershipPattern ?? "",
           name: person.fullName,
           relation: person.relationToLandOwner,
           gender: person.gender ?? "",
@@ -435,6 +464,7 @@ excelRouter.get("/export-excel", async (_request, response) => {
           marriageDate: person.marriageDate ?? "",
           religion: person.religion ?? "",
           category: person.casteCategory ?? "",
+          categoryDetail: person.otherCasteCategoryDetail ?? "",
           occupation: person.occupation ?? "",
           education: person.education ?? "",
           incomeRange: person.incomeRange ?? "",
@@ -545,6 +575,13 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
         id: householdId,
         villageId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         houseId,
+        linkedHouseIds: String(groupRows[0]?.["Linked House IDs"] ?? "").trim() || undefined,
+        ownershipPattern: optionalUpperValue(String(groupRows[0]?.["Ownership Pattern"] ?? "SINGLE_HOUSE"), [
+          "SINGLE_HOUSE",
+          "MULTIPLE_HOUSE_IDS",
+          "HOUSE_AND_PLOT",
+          "MULTIPLE_HOUSE_IDS_AND_PLOT",
+        ] as const),
         status: "DRAFT",
         isLocked: false,
       },
@@ -582,6 +619,7 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
           "ST",
           "OTHERS",
         ] as const),
+        otherCasteCategoryDetail: String(row["Category Detail"] ?? "").trim() || undefined,
         occupation: optionalUpperValue(String(row["Occupation"] ?? "OTHER"), [
           "EMPLOYED",
           "AGRICULTURE",
@@ -593,6 +631,7 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
           "OTHER",
         ] as const),
         education: optionalUpperValue(String(row["Education"] ?? "OTHERS"), [
+          "SCHOOL_GOING_CHILD",
           "LESS_THAN_10TH",
           "10TH",
           "12TH",
