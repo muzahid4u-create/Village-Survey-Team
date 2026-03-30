@@ -287,6 +287,43 @@ a {
   gap: 16px;
 }
 
+.search-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.search-result-card {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--soft-line);
+  background: linear-gradient(180deg, #fffdf8 0%, #f8f4ec 100%);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.search-result-card strong {
+  font-size: 1rem;
+  color: var(--green-900);
+}
+
+.search-result-card span,
+.search-result-card small {
+  color: var(--muted);
+}
+
+.search-result-card:hover,
+.search-result-card.is-active {
+  transform: translateY(-2px);
+  border-color: rgba(34, 100, 71, 0.22);
+  box-shadow: var(--shadow-soft);
+}
+
 .bulk-upload-card {
   display: grid;
   gap: 12px;

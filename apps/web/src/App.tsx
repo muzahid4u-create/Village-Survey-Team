@@ -127,12 +127,19 @@ export default function App() {
 
   const activeHousehold =
     filteredHouseholds.find((household) => household.household.id === selectedHouseholdId) ?? filteredHouseholds[0];
+  const isSearching = searchQuery.trim().length > 0;
 
   useEffect(() => {
     if (activeHousehold && activeHousehold.household.id !== selectedHouseholdId) {
       setSelectedHouseholdId(activeHousehold.household.id);
     }
   }, [activeHousehold, selectedHouseholdId]);
+
+  useEffect(() => {
+    if (isSearching && activeSection !== "add_survey" && activeSection !== "bulk_upload") {
+      setActiveSection("households");
+    }
+  }, [activeSection, isSearching]);
 
   async function refreshHouseholds() {
     const next = await fetchHouseholds();
@@ -422,6 +429,42 @@ export default function App() {
           />
         ) : null}
         {activeSection === "dashboard" || activeSection === "reports" ? <DashboardPage households={filteredHouseholds} canDownload={canDownload} /> : null}
+        {isSearching && filteredHouseholds.length > 0 ? (
+          <section className="panel">
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">Search Results</p>
+                <h2>Matching Households</h2>
+              </div>
+              <p className="muted">Select a result below to open that household directly.</p>
+            </div>
+            <div className="search-result-grid">
+              {filteredHouseholds.map((item) => {
+                const ownerName =
+                  item.persons.find((person) => person.relationToLandOwner === "PRIMARY_LAND_OWNER")?.fullName ??
+                  "Owner missing";
+
+                return (
+                  <button
+                    key={item.household.id}
+                    type="button"
+                    className={`search-result-card${activeHousehold?.household.id === item.household.id ? " is-active" : ""}`}
+                    onClick={() => {
+                      setSelectedHouseholdId(item.household.id);
+                      setActiveSection("households");
+                    }}
+                  >
+                    <strong>{item.household.houseId}</strong>
+                    <span>{ownerName}</span>
+                    <small>
+                      {item.household.locality ?? "Locality not entered"} · {item.persons.filter((person) => person.includeInSurvey !== false).length} members
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
         {(activeSection === "households" || activeSection === "dashboard" || activeSection === "reports") && activeHousehold ? (
           <HouseholdReviewPage
             household={activeHousehold}
