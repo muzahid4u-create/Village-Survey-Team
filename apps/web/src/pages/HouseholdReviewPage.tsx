@@ -92,11 +92,12 @@ export function HouseholdReviewPage({
             </button>
           ) : (
             <button type="button" className="ghost-btn is-disabled" disabled>
-              Remove
+              Remove (Super Admin Only)
             </button>
           )}
         </div>
       </div>
+      {!canDelete ? <p className="muted permission-note">Remove is available only for Super Admin login.</p> : null}
 
       <div className="review-grid">
         <div className="review-card">

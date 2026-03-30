@@ -528,6 +528,10 @@ a {
   gap: 12px;
 }
 
+.permission-note {
+  margin: 8px 0 0;
+}
+
 .entry-form {
   display: grid;
   gap: 18px;

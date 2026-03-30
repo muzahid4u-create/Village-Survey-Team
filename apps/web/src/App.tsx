@@ -308,6 +308,12 @@ export default function App() {
           <span className="badge">CSV and PDF downloads ready</span>
           <span className="badge">Excel export ready</span>
         </div>
+        {sessionUser.role === "ADMIN" ? (
+          <div className="legal-note">
+            <p>Admin access supports viewing and survey entry.</p>
+            <p>Downloads and Remove actions are available only for Super Admin.</p>
+          </div>
+        ) : null}
         <div className="sidebar-promo">
           <p className="eyebrow">Field Ready</p>
           <strong>Village Survey Console</strong>

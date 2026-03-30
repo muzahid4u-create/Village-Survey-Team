@@ -460,7 +460,17 @@ export class HouseholdRepository {
   }
 
   async remove(id: string): Promise<void> {
-    await pool.query("delete from households where id = $1", [id]);
+    await withTransaction(async (client) => {
+      await client.query(
+        "delete from family_group_members where family_group_id in (select id from family_groups where household_id = $1)",
+        [id],
+      );
+      await client.query("delete from family_groups where household_id = $1", [id]);
+      await client.query("delete from persons where household_id = $1", [id]);
+      await client.query("delete from land_details where household_id = $1", [id]);
+      await client.query("delete from valuations where household_id = $1", [id]);
+      await client.query("delete from households where id = $1", [id]);
+    });
   }
 
   async getDashboardSummary() {
