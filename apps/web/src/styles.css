@@ -563,6 +563,7 @@ a {
 
 .member-section,
 .member-editor,
+.family-benefit-card,
 .calc-card,
 .review-card,
 .stat-card {
@@ -574,6 +575,7 @@ a {
 }
 
 .member-section,
+.family-benefit-card,
 .analytics-card {
   display: grid;
   gap: 16px;

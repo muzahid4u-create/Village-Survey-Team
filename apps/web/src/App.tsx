@@ -427,6 +427,7 @@ export default function App() {
         ) : null}
         {activeSection === "add_survey" ? (
           <HouseholdEntryPage
+            canDelete={canDelete}
             editingHousehold={editingHousehold}
             onCancelEdit={() => setEditingHousehold(null)}
             onCreated={(bundle) => {

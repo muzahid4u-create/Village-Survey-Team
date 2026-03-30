@@ -23,6 +23,7 @@ interface HouseholdEntryPageProps {
   onCreated(bundle: HouseholdBundle): void;
   editingHousehold?: HouseholdBundle | null;
   onCancelEdit(): void;
+  canDelete: boolean;
 }
 
 interface MemberDraft {
@@ -87,7 +88,7 @@ function createDefaultFamilyBenefits(): Record<FamilyCode, BenefitType> {
   };
 }
 
-export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }: HouseholdEntryPageProps) {
+export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit, canDelete }: HouseholdEntryPageProps) {
   const [houseId, setHouseId] = useState("");
   const [surveyNumber, setSurveyNumber] = useState("");
   const [locality, setLocality] = useState("");
@@ -234,6 +235,21 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
     setMembers((current) => (current.length === 1 ? current : current.filter((member) => member.id !== id)));
   }
 
+  function removeFamilyGroup(familyCode: FamilyCode) {
+    if (familyCode === "F1") return;
+
+    setMembers((current) => {
+      const next = current.filter((member) => member.familyGroupCode !== familyCode);
+      return next.length > 0 ? next : [createMemberDraft()];
+    });
+    setFamilyBenefits((current) => ({
+      ...current,
+      [familyCode]: "LUMPSUM_AMOUNT",
+    }));
+    setError("");
+    setMessage(`Removed ${familyCode} and its linked family members from this household.`);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -356,6 +372,11 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
     subsistenceAllowance: 0,
     otherAssistance: 0,
   }).totalCompensation;
+  const activeFamilyCodes = new Set(
+    members
+      .filter((member) => member.includeInSurvey && member.familyGroupCode)
+      .map((member) => member.familyGroupCode),
+  );
 
   return (
     <section className="panel">
@@ -483,26 +504,44 @@ export function HouseholdEntryPage({ onCreated, editingHousehold, onCancelEdit }
           </div>
           <div className="entry-grid">
             {familyCodes.map((familyCode) => (
-              <label key={familyCode}>
-                {familyCode} Benefit Type
-                <select
-                  value={familyBenefits[familyCode]}
-                  onChange={(event) =>
-                    setFamilyBenefits((current) => ({
-                      ...current,
-                      [familyCode]: event.target.value as BenefitType,
-                    }))
-                  }
-                  disabled={!hasResidentFamily}
-                >
-                  <option value="INDIVIDUAL_PLOT">Individual Plot</option>
-                  <option value="LUMPSUM_AMOUNT">Lumpsum Amount</option>
-                </select>
-              </label>
+              <div key={familyCode} className="family-benefit-card">
+                <label>
+                  {familyCode} Benefit Type
+                  <select
+                    value={familyBenefits[familyCode]}
+                    onChange={(event) =>
+                      setFamilyBenefits((current) => ({
+                        ...current,
+                        [familyCode]: event.target.value as BenefitType,
+                      }))
+                    }
+                    disabled={!hasResidentFamily}
+                  >
+                    <option value="INDIVIDUAL_PLOT">Individual Plot</option>
+                    <option value="LUMPSUM_AMOUNT">Lumpsum Amount</option>
+                  </select>
+                </label>
+                {familyCode === "F1" ? (
+                  <small className="muted">F1 is the primary family and cannot be removed.</small>
+                ) : (
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => removeFamilyGroup(familyCode)}
+                    disabled={!hasResidentFamily || !canDelete || !activeFamilyCodes.has(familyCode)}
+                    title={!canDelete ? "Available only for Super Admin" : undefined}
+                  >
+                    {canDelete ? `Remove ${familyCode}` : `${familyCode} Remove (Super Admin Only)`}
+                  </button>
+                )}
+              </div>
             ))}
           </div>
           {!hasResidentFamily ? (
             <p className="muted">Family benefits are not required for property-only survey records with no resident family.</p>
+          ) : null}
+          {hasResidentFamily && !canDelete ? (
+            <p className="muted permission-note">Family-group remove is available only for Super Admin login.</p>
           ) : null}
         </div>
 
