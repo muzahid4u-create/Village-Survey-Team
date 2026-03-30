@@ -1,4 +1,4 @@
-import { sampleHouseholdBundle, type HouseholdBundle, type PersonInput } from "@marda/shared";
+import type { HouseholdBundle, PersonInput } from "@marda/shared";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
@@ -48,7 +48,7 @@ export interface CreateHouseholdPayload {
 }
 
 export async function fetchDashboardSummary() {
-  const response = await fetch(`${API_BASE_URL}/dashboard/summary`);
+  const response = await fetch(`${API_BASE_URL}/dashboard/summary`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error("Failed to load dashboard summary");
   }
@@ -56,17 +56,13 @@ export async function fetchDashboardSummary() {
 }
 
 export async function fetchHouseholds(): Promise<HouseholdBundle[]> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/households`);
-    if (!response.ok) {
-      throw new Error("Failed to load households");
-    }
-
-    const data = await response.json();
-    return data.items;
-  } catch {
-    return [sampleHouseholdBundle];
+  const response = await fetch(`${API_BASE_URL}/households`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to load households");
   }
+
+  const data = await response.json();
+  return data.items;
 }
 
 export async function createHousehold(payload: CreateHouseholdPayload): Promise<HouseholdBundle> {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { sampleHouseholdBundle, type HouseholdBundle } from "@marda/shared";
+import type { HouseholdBundle } from "@marda/shared";
 import { API_BASE_URL, deleteHousehold, fetchHouseholds, importExcel } from "./api/client";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HouseholdEntryPage } from "./pages/HouseholdEntryPage";
@@ -30,13 +30,15 @@ const LOGIN_CREDENTIALS: Record<string, { password: string; role: UserRole; disp
 
 export default function App() {
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
-  const [households, setHouseholds] = useState<HouseholdBundle[]>([sampleHouseholdBundle]);
-  const [selectedHouseholdId, setSelectedHouseholdId] = useState(sampleHouseholdBundle.household.id);
+  const [households, setHouseholds] = useState<HouseholdBundle[]>([]);
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState("");
   const [editingHousehold, setEditingHousehold] = useState<HouseholdBundle | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [bulkUploadMessage, setBulkUploadMessage] = useState("");
   const [bulkUploadError, setBulkUploadError] = useState("");
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [loadingHouseholds, setLoadingHouseholds] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => {
     const saved = window.localStorage.getItem(AUTH_STORAGE_KEY);
     return saved ? (JSON.parse(saved) as SessionUser) : null;
@@ -44,12 +46,6 @@ export default function App() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-
-  useEffect(() => {
-    fetchHouseholds().then(setHouseholds).catch(() => {
-      setHouseholds([sampleHouseholdBundle]);
-    });
-  }, []);
 
   const canDownload = sessionUser?.role === "SUPER_ADMIN";
   const canDelete = sessionUser?.role === "SUPER_ADMIN";
@@ -145,12 +141,30 @@ export default function App() {
   }, [activeSection, isSearching]);
 
   async function refreshHouseholds() {
-    const next = await fetchHouseholds();
-    setHouseholds(next);
-    if (next[0] && !next.some((item) => item.household.id === selectedHouseholdId)) {
-      setSelectedHouseholdId(next[0].household.id);
+    setLoadingHouseholds(true);
+    setLoadError("");
+
+    try {
+      const next = await fetchHouseholds();
+      setHouseholds(next);
+      setSelectedHouseholdId((currentSelected) => {
+        if (next.some((item) => item.household.id === currentSelected)) {
+          return currentSelected;
+        }
+        return next[0]?.household.id ?? "";
+      });
+    } catch (error) {
+      setHouseholds([]);
+      setSelectedHouseholdId("");
+      setLoadError(error instanceof Error ? error.message : "Unable to load household data");
+    } finally {
+      setLoadingHouseholds(false);
     }
   }
+
+  useEffect(() => {
+    void refreshHouseholds();
+  }, []);
 
   async function handleImportChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -332,9 +346,18 @@ export default function App() {
             />
           </div>
           <div className="topbar-search-status">
-            {searchQuery.trim() ? `${filteredHouseholds.length} result(s)` : `${households.length} households loaded`}
+            {loadingHouseholds
+              ? "Loading households..."
+              : loadError
+                ? "Data load failed"
+                : searchQuery.trim()
+                  ? `${filteredHouseholds.length} result(s)`
+                  : `${households.length} households loaded`}
           </div>
           <div className="topbar-actions">
+            <button type="button" className="topbar-btn" onClick={() => void refreshHouseholds()}>
+              Refresh Data
+            </button>
             {canDownload ? (
               <a className="topbar-btn topbar-btn-primary" href={`${API_BASE_URL}/download-csv`}>
                 Download CSV
@@ -376,6 +399,21 @@ export default function App() {
         </header>
 
         <div className="content">
+        {loadError ? (
+          <section className="panel">
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">Data Load</p>
+                <h2>Unable to load household data</h2>
+              </div>
+              <button type="button" className="secondary-btn" onClick={() => void refreshHouseholds()}>
+                Try Again
+              </button>
+            </div>
+            <p className="error-text">{loadError}</p>
+            <p className="muted">The dashboard and household list will appear as soon as the local API responds successfully.</p>
+          </section>
+        ) : null}
         {activeSection === "bulk_upload" ? (
           <section className="panel">
             <div className="section-head">
@@ -498,17 +536,21 @@ export default function App() {
               setEditingHousehold(null);
             }}
           />
-        ) : (
+        ) : !loadError && !loadingHouseholds ? (
           <section className="panel">
             <div className="section-head">
               <div>
                 <p className="eyebrow">Search Results</p>
-                <h2>No Matching Households</h2>
+                <h2>{households.length === 0 ? "No Household Data Loaded" : "No Matching Households"}</h2>
               </div>
-              <p className="muted">Try searching by house ID, member name, family group, relation, or locality.</p>
+              <p className="muted">
+                {households.length === 0
+                  ? "Use Refresh Data after the API is available, or import a file through Bulk Upload."
+                  : "Try searching by house ID, member name, family group, relation, or locality."}
+              </p>
             </div>
           </section>
-        )}
+        ) : null}
         </div>
       </div>
     </main>
