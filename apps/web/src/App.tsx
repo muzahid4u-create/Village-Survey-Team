@@ -4,6 +4,7 @@ import { API_BASE_URL, deleteHousehold, fetchHouseholds, importExcel } from "./a
 import { DashboardPage } from "./pages/DashboardPage";
 import { HouseholdEntryPage } from "./pages/HouseholdEntryPage";
 import { HouseholdReviewPage } from "./pages/HouseholdReviewPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
 type UserRole = "SUPER_ADMIN" | "ADMIN";
 type ActiveSection = "dashboard" | "households" | "add_survey" | "bulk_upload" | "reports";
@@ -476,7 +477,8 @@ export default function App() {
             }}
           />
         ) : null}
-        {activeSection === "dashboard" || activeSection === "reports" ? <DashboardPage households={filteredHouseholds} canDownload={canDownload} /> : null}
+        {activeSection === "dashboard" ? <DashboardPage households={filteredHouseholds} canDownload={canDownload} /> : null}
+        {activeSection === "reports" ? <ReportsPage canDownload={canDownload} /> : null}
         {isSearching && filteredHouseholds.length > 0 ? (
           <section className="panel">
             <div className="section-head">
@@ -513,7 +515,7 @@ export default function App() {
             </div>
           </section>
         ) : null}
-        {(activeSection === "households" || activeSection === "dashboard" || activeSection === "reports") && activeHousehold ? (
+        {(activeSection === "households" || activeSection === "dashboard") && activeHousehold ? (
           <HouseholdReviewPage
             household={activeHousehold}
             onSelectHousehold={setSelectedHouseholdId}

@@ -161,6 +161,11 @@ type PersonPayload = CreateHouseholdBundleInput["persons"][number];
 type FamilyBenefitPayload = NonNullable<CreateHouseholdBundleInput["familyBenefits"]>[number];
 type LandDetailsPayload = NonNullable<CreateHouseholdBundleInput["landDetails"]>;
 type ValuationPayload = NonNullable<CreateHouseholdBundleInput["valuation"]>;
+type FlattenedRow = ReturnType<typeof flattenHouseholdRows>[number];
+
+function formatLabel(value: string) {
+  return value.replaceAll("_", " ");
+}
 
 function flattenHouseholdRows(households: Awaited<ReturnType<typeof householdService.list>>) {
   return households.flatMap((household) =>
@@ -194,6 +199,59 @@ function flattenHouseholdRows(households: Awaited<ReturnType<typeof householdSer
         landValue: household.valuation?.landValue ?? "",
       })),
   );
+}
+
+function filterRowsByFamilyCode(rows: FlattenedRow[], familyCode: "F1" | "F2" | "F3" | "F4" | "F5") {
+  return rows.filter((row) => row.familyId === familyCode);
+}
+
+function filterRowsByBenefitType(
+  households: Awaited<ReturnType<typeof householdService.list>>,
+  benefitType: "INDIVIDUAL_PLOT" | "LUMPSUM_AMOUNT",
+) {
+  const eligibleKeys = new Set<string>();
+
+  households.forEach((household) => {
+    household.familyGroups
+      .filter((group) => group.benefitType === benefitType)
+      .forEach((group) => {
+        eligibleKeys.add(`${household.household.id}:${group.familyGroupCode}`);
+      });
+  });
+
+  return flattenHouseholdRows(households).filter((row) =>
+    eligibleKeys.has(
+      `${households.find((household) => household.household.houseId === row.householdId)?.household.id ?? ""}:${row.familyId}`,
+    ),
+  );
+}
+
+function buildDistributionRows(
+  households: Awaited<ReturnType<typeof householdService.list>>,
+  key: "incomeRange" | "casteCategory" | "occupation",
+) {
+  const counts = households.reduce<Record<string, number>>((accumulator, household) => {
+    household.persons
+      .filter((person) => person.includeInSurvey !== false && person[key])
+      .forEach((person) => {
+        const value = String(person[key] ?? "").trim();
+        if (!value) return;
+        accumulator[value] = (accumulator[value] ?? 0) + 1;
+      });
+
+    return accumulator;
+  }, {});
+
+  const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+
+  return Object.entries(counts)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([value, count]) => ({
+      value,
+      label: formatLabel(value),
+      count,
+      share: total > 0 ? Number(((count / total) * 100).toFixed(2)) : 0,
+    }));
 }
 
 function writeCsv(response: Response, fileName: string, rows: ReturnType<typeof flattenHouseholdRows>) {
@@ -424,6 +482,163 @@ function addWorkbookBranding(workbook: ExcelJS.Workbook, sheet: ExcelJS.Workshee
   sheet.getRow(2).height = 24;
 }
 
+async function writeSummaryExcel(
+  response: Response,
+  fileName: string,
+  title: string,
+  rows: Array<{ label: string; count: number; share: number }>,
+) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Summary");
+
+  sheet.columns = [
+    { header: "Label", key: "label", width: 28 },
+    { header: "Count", key: "count", width: 14 },
+    { header: "Share (%)", key: "share", width: 14 },
+  ];
+
+  rows.forEach((row) => sheet.addRow(row));
+  sheet.spliceRows(1, 0, [], []);
+  addWorkbookBranding(workbook, sheet, title);
+
+  response.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  await workbook.xlsx.write(response);
+  response.end();
+}
+
+async function writeDetailExcel(
+  response: Response,
+  fileName: string,
+  title: string,
+  rows: FlattenedRow[],
+) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Report");
+
+  sheet.columns = [
+    { header: "House ID", key: "householdId", width: 14 },
+    { header: "Linked House IDs", key: "linkedHouseIds", width: 24 },
+    { header: "Ownership Pattern", key: "ownershipPattern", width: 28 },
+    { header: "Name", key: "name", width: 24 },
+    { header: "Relation", key: "relation", width: 28 },
+    { header: "Gender", key: "gender", width: 12 },
+    { header: "Age", key: "age", width: 10 },
+    { header: "Marital Status", key: "maritalStatus", width: 18 },
+    { header: "Marriage Date", key: "marriageDate", width: 18 },
+    { header: "Religion", key: "religion", width: 14 },
+    { header: "Category", key: "category", width: 12 },
+    { header: "Category Detail", key: "categoryDetail", width: 22 },
+    { header: "Occupation", key: "occupation", width: 18 },
+    { header: "Education", key: "education", width: 16 },
+    { header: "Income Range", key: "incomeRange", width: 18 },
+    { header: "Aadhaar Number", key: "aadhaarNumber", width: 20 },
+    { header: "Family ID", key: "familyId", width: 10 },
+    { header: "Dependent", key: "dependent", width: 12 },
+    { header: "Structure Type", key: "structureType", width: 16 },
+    { header: "Cattle Shed Available", key: "cattleShedAvailable", width: 20 },
+    { header: "Built-up Area", key: "builtUpArea", width: 14 },
+    { header: "Empty Plot Area", key: "emptyPlotArea", width: 16 },
+    { header: "Total Area", key: "totalArea", width: 12 },
+    { header: "Construction Value", key: "constructionValue", width: 18 },
+    { header: "Land Value", key: "landValue", width: 14 },
+  ];
+
+  rows.forEach((row) => sheet.addRow(row));
+  sheet.spliceRows(1, 0, [], []);
+  addWorkbookBranding(workbook, sheet, title);
+
+  response.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  await workbook.xlsx.write(response);
+  response.end();
+}
+
+function writeSummaryCsv(
+  response: Response,
+  fileName: string,
+  rows: Array<{ label: string; count: number; share: number }>,
+) {
+  const csvLines = [
+    "Label,Count,Share (%)",
+    ...rows.map((row) => [`"${row.label.replaceAll('"', '""')}"`, row.count, row.share].join(",")),
+  ];
+
+  response.setHeader("Content-Type", "text/csv");
+  response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  response.send(csvLines.join("\n"));
+}
+
+function writeSummaryPdf(
+  response: Response,
+  title: string,
+  fileName: string,
+  rows: Array<{ label: string; count: number; share: number }>,
+) {
+  const doc = new PDFDocument({ margin: 28, size: "A4" });
+  response.setHeader("Content-Type", "application/pdf");
+  response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  doc.pipe(response);
+
+  if (coalIndiaLogoBuffer) {
+    doc.image(coalIndiaLogoBuffer, 28, 18, {
+      fit: [52, 52],
+    });
+  }
+
+  doc.fillColor("#143e2d").font("Helvetica-Bold").fontSize(15).text(title, 92, 24, {
+    align: "center",
+    width: doc.page.width - 180,
+  });
+  doc.fillColor("#6e7169").font("Helvetica").fontSize(10).text(
+    "Marda Village Rehabilitation & Resettlement (R&R) Survey",
+    92,
+    44,
+    { align: "center", width: doc.page.width - 180 },
+  );
+  doc.text("Coal India Limited", 92, 58, {
+    align: "center",
+    width: doc.page.width - 180,
+  });
+
+  const columns = [
+    { label: "Classification", key: "label", x: 34, width: 280 },
+    { label: "Count", key: "count", x: 324, width: 90 },
+    { label: "Share (%)", key: "share", x: 424, width: 90 },
+  ] as const;
+  const rowHeight = 26;
+  const startY = 110;
+
+  columns.forEach((column) => {
+    doc.roundedRect(column.x, startY, column.width, rowHeight, 4).fillAndStroke("#e8f0e8", "#d4ddcf");
+    doc.fillColor("#143e2d").font("Helvetica-Bold").fontSize(9).text(column.label, column.x, startY + 8, {
+      width: column.width,
+      align: "center",
+    });
+  });
+
+  let y = startY + rowHeight;
+  rows.forEach((row, index) => {
+    const fill = index % 2 === 0 ? "#fffdf8" : "#f7f3ea";
+    columns.forEach((column) => {
+      doc.roundedRect(column.x, y, column.width, rowHeight, 2).fillAndStroke(fill, "#e3ddd2");
+      doc.fillColor("#2a342d").font("Helvetica").fontSize(9).text(String(row[column.key]), column.x + 6, y + 8, {
+        width: column.width - 12,
+        align: column.key === "label" ? "left" : "center",
+      });
+    });
+    y += rowHeight;
+  });
+
+  doc.end();
+}
+
 excelRouter.get("/import-template", async (_request, response) => {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Survey Template");
@@ -650,6 +865,181 @@ excelRouter.get("/download-pdf", async (_request, response) => {
     "Marda Village Household Survey Report",
     "marda_rr_survey.pdf",
     flattenHouseholdRows(households),
+  );
+});
+
+excelRouter.get("/reports/family/:familyCode/download-csv", async (request, response) => {
+  const familyCode = optionalUpperValue(request.params.familyCode, ["F1", "F2", "F3", "F4", "F5"] as const);
+  if (!familyCode) {
+    response.status(400).json({ message: "Invalid family code" });
+    return;
+  }
+
+  const households = await householdService.list();
+  writeCsv(response, `report_${familyCode.toLowerCase()}.csv`, filterRowsByFamilyCode(flattenHouseholdRows(households), familyCode));
+});
+
+excelRouter.get("/reports/family/:familyCode/download-pdf", async (request, response) => {
+  const familyCode = optionalUpperValue(request.params.familyCode, ["F1", "F2", "F3", "F4", "F5"] as const);
+  if (!familyCode) {
+    response.status(400).json({ message: "Invalid family code" });
+    return;
+  }
+
+  const households = await householdService.list();
+  writePdf(
+    response,
+    `${familyCode} Family Details Report`,
+    `report_${familyCode.toLowerCase()}.pdf`,
+    filterRowsByFamilyCode(flattenHouseholdRows(households), familyCode),
+  );
+});
+
+excelRouter.get("/reports/family/:familyCode/export-excel", async (request, response) => {
+  const familyCode = optionalUpperValue(request.params.familyCode, ["F1", "F2", "F3", "F4", "F5"] as const);
+  if (!familyCode) {
+    response.status(400).json({ message: "Invalid family code" });
+    return;
+  }
+
+  const households = await householdService.list();
+  await writeDetailExcel(
+    response,
+    `report_${familyCode.toLowerCase()}.xlsx`,
+    `${familyCode} Family Details Report`,
+    filterRowsByFamilyCode(flattenHouseholdRows(households), familyCode),
+  );
+});
+
+excelRouter.get("/reports/benefit/:benefitType/download-csv", async (request, response) => {
+  const benefitType = optionalUpperValue(
+    request.params.benefitType,
+    ["INDIVIDUAL_PLOT", "LUMPSUM_AMOUNT"] as const,
+  );
+  if (!benefitType) {
+    response.status(400).json({ message: "Invalid benefit type" });
+    return;
+  }
+
+  const households = await householdService.list();
+  writeCsv(
+    response,
+    `report_${benefitType.toLowerCase()}.csv`,
+    filterRowsByBenefitType(households, benefitType),
+  );
+});
+
+excelRouter.get("/reports/benefit/:benefitType/download-pdf", async (request, response) => {
+  const benefitType = optionalUpperValue(
+    request.params.benefitType,
+    ["INDIVIDUAL_PLOT", "LUMPSUM_AMOUNT"] as const,
+  );
+  if (!benefitType) {
+    response.status(400).json({ message: "Invalid benefit type" });
+    return;
+  }
+
+  const households = await householdService.list();
+  writePdf(
+    response,
+    `${formatLabel(benefitType)} Families Report`,
+    `report_${benefitType.toLowerCase()}.pdf`,
+    filterRowsByBenefitType(households, benefitType),
+  );
+});
+
+excelRouter.get("/reports/benefit/:benefitType/export-excel", async (request, response) => {
+  const benefitType = optionalUpperValue(
+    request.params.benefitType,
+    ["INDIVIDUAL_PLOT", "LUMPSUM_AMOUNT"] as const,
+  );
+  if (!benefitType) {
+    response.status(400).json({ message: "Invalid benefit type" });
+    return;
+  }
+
+  const households = await householdService.list();
+  await writeDetailExcel(
+    response,
+    `report_${benefitType.toLowerCase()}.xlsx`,
+    `${formatLabel(benefitType)} Families Report`,
+    filterRowsByBenefitType(households, benefitType),
+  );
+});
+
+excelRouter.get("/reports/distribution/:distributionType/download-csv", async (request, response) => {
+  const distributionType = optionalUpperValue(
+    request.params.distributionType,
+    ["INCOME", "CATEGORY", "OCCUPATION"] as const,
+  );
+  if (!distributionType) {
+    response.status(400).json({ message: "Invalid distribution type" });
+    return;
+  }
+
+  const households = await householdService.list();
+  const rows = buildDistributionRows(
+    households,
+    distributionType === "INCOME"
+      ? "incomeRange"
+      : distributionType === "CATEGORY"
+        ? "casteCategory"
+        : "occupation",
+  );
+  writeSummaryCsv(response, `report_${distributionType.toLowerCase()}_distribution.csv`, rows);
+});
+
+excelRouter.get("/reports/distribution/:distributionType/download-pdf", async (request, response) => {
+  const distributionType = optionalUpperValue(
+    request.params.distributionType,
+    ["INCOME", "CATEGORY", "OCCUPATION"] as const,
+  );
+  if (!distributionType) {
+    response.status(400).json({ message: "Invalid distribution type" });
+    return;
+  }
+
+  const households = await householdService.list();
+  const rows = buildDistributionRows(
+    households,
+    distributionType === "INCOME"
+      ? "incomeRange"
+      : distributionType === "CATEGORY"
+        ? "casteCategory"
+        : "occupation",
+  );
+  writeSummaryPdf(
+    response,
+    `${formatLabel(distributionType)} Distribution Report`,
+    `report_${distributionType.toLowerCase()}_distribution.pdf`,
+    rows,
+  );
+});
+
+excelRouter.get("/reports/distribution/:distributionType/export-excel", async (request, response) => {
+  const distributionType = optionalUpperValue(
+    request.params.distributionType,
+    ["INCOME", "CATEGORY", "OCCUPATION"] as const,
+  );
+  if (!distributionType) {
+    response.status(400).json({ message: "Invalid distribution type" });
+    return;
+  }
+
+  const households = await householdService.list();
+  const rows = buildDistributionRows(
+    households,
+    distributionType === "INCOME"
+      ? "incomeRange"
+      : distributionType === "CATEGORY"
+        ? "casteCategory"
+        : "occupation",
+  );
+  await writeSummaryExcel(
+    response,
+    `report_${distributionType.toLowerCase()}_distribution.xlsx`,
+    `${formatLabel(distributionType)} Distribution Report`,
+    rows,
   );
 });
 
