@@ -3,7 +3,7 @@
   "outputDirectory": "apps/web/dist",
   "framework": "vite",
   "functions": {
-    "api/[...path].mjs": {
+    "api/**/*.mjs": {
       "runtime": "@vercel/node@3.2.26",
       "regions": ["sin1"],
       "maxDuration": 30
