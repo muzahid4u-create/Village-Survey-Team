@@ -4,7 +4,9 @@
   "framework": "vite",
   "functions": {
     "api/[...path].mjs": {
-      "runtime": "@vercel/node@3.2.26"
+      "runtime": "@vercel/node@3.2.26",
+      "regions": ["sin1"],
+      "maxDuration": 30
     }
   }
 }
