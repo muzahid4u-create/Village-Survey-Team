@@ -6,6 +6,8 @@ import { Router, type Response } from "express";
 import multer from "multer";
 import PDFDocument from "pdfkit";
 import * as XLSX from "xlsx";
+import { pool } from "../../db/client.js";
+import type { CreateHouseholdBundleInput } from "../households/household.schemas.js";
 import { householdService } from "../households/household.service.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -19,6 +21,146 @@ function optionalUpperValue<TValue extends string>(value: string | number | unde
   if (!normalized) return undefined;
   return allowed.includes(normalized as TValue) ? (normalized as TValue) : undefined;
 }
+
+function normalizeHouseId(value: string | number | undefined): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return /^\d+$/.test(raw) ? raw.padStart(3, "0") : raw;
+}
+
+function normalizeText(value: string | number | undefined): string {
+  return String(value ?? "").trim();
+}
+
+function parseOptionalNumber(value: string | number | undefined): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const text = normalizeText(value);
+  if (!text) return undefined;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseNumberOrZero(value: string | number | undefined): number {
+  return parseOptionalNumber(value) ?? 0;
+}
+
+function normalizeLoose(value: string | number | undefined): string {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rootHouseId(houseId: string): string {
+  return normalizeHouseId(houseId.split("/")[0] ?? houseId);
+}
+
+const relationLabelMap: Record<string, string> = {
+  "primary landowner": "PRIMARY_LAND_OWNER",
+  "primary landowner spouse": "PRIMARY_LAND_OWNER_SPOUSE",
+  son: "SON",
+  daughter: "DAUGHTER",
+  "daughter in law": "DAUGHTER_IN_LAW",
+  "daughter-in-law": "DAUGHTER_IN_LAW",
+  grandson: "GRAND_SON",
+  granddaughter: "GRAND_DAUGHTER",
+  mother: "MOTHER",
+  father: "FATHER",
+  brother: "BROTHER",
+  sister: "SISTER",
+};
+
+function mapOccupation(value: string | number | undefined) {
+  const key = normalizeLoose(value);
+  if (!key || key === "none" || key === "unemployed") return "UNEMPLOYED" as const;
+  if (key.includes("student")) return "STUDENT" as const;
+  if (key.includes("business")) return "BUSINESS" as const;
+  if (key.includes("government job") || key.includes("private job") || key.includes("retired")) return "EMPLOYED" as const;
+  if (key.includes("agricultural labour") || key.includes("agriculture labour") || key.includes("agriculture")) return "AGRICULTURE" as const;
+  return "OTHER" as const;
+}
+
+function mapEducation(value: string | number | undefined, age?: number) {
+  const key = normalizeLoose(value);
+  if (age !== undefined && age < 18 && (key === "student" || !key)) return "SCHOOL_GOING_CHILD" as const;
+  if (key === "student") return "SCHOOL_GOING_CHILD" as const;
+  if (!key || key === "illiterate" || key === "below ssc passed") return "LESS_THAN_10TH" as const;
+  if (key === "only ssc passed") return "10TH" as const;
+  if (key === "below hsc") return "10TH" as const;
+  if (key === "only hsc passed") return "12TH" as const;
+  if (key === "iti") return "ITI" as const;
+  if (key === "graduate") return "DEGREE" as const;
+  if (key === "post graduate" || key === "phd") return "MASTERS" as const;
+  return "OTHERS" as const;
+}
+
+function mapMaritalStatus(value: string | number | undefined, age?: number) {
+  if (age !== undefined && age < 18) return "MINOR" as const;
+  const key = normalizeLoose(value);
+  if (!key || key === "unmarried") return "UNMARRIED" as const;
+  if (key === "married" || key === "married with kids") return "MARRIED" as const;
+  if (key === "expired" || key === "widow with kids") return "WIDOWED" as const;
+  return "UNMARRIED" as const;
+}
+
+function mapIncomeRange(value: string | number | undefined) {
+  const key = normalizeLoose(value);
+  if (!key || key === "0 5 lakh") return "0-5_LAKH" as const;
+  if (key === "5 10 lakh") return "5-10_LAKH" as const;
+  if (key === "10 15 lakh") return "10-15_LAKH" as const;
+  if (key === "15 20 lakh") return "15-20_LAKH" as const;
+  if (key === "20 25 lakh") return "20-25_LAKH" as const;
+  return "ABOVE_25_LAKH" as const;
+}
+
+function mapBenefitType(value: string | number | undefined) {
+  const key = normalizeLoose(value);
+  if (key.includes("individual")) return "INDIVIDUAL_PLOT" as const;
+  if (key.includes("lumpsum")) return "LUMPSUM_AMOUNT" as const;
+  return undefined;
+}
+
+function mapStructureType(value: string | number | undefined) {
+  const key = normalizeLoose(value);
+  if (key.includes("semi")) return "Semi-Pucca";
+  if (key.includes("kuccha") || key.includes("kutcha")) return "Kutcha";
+  if (key.includes("pucca")) return "Pucca";
+  return normalizeText(value) || undefined;
+}
+
+function toDateString(value: string | number | undefined) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (!parsed) return undefined;
+    return `${parsed.y.toString().padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+  }
+
+  const text = String(value).trim();
+  if (!text) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().slice(0, 10);
+}
+
+function chooseImportRows(workbook: XLSX.WorkBook) {
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(sheet, { defval: "" });
+    const hasHouseId = rows.some((row) => normalizeText(row["House ID"]));
+    if (hasHouseId) return rows;
+  }
+
+  return XLSX.utils.sheet_to_json<Record<string, string | number>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+}
+
+type HouseholdPayload = CreateHouseholdBundleInput["household"];
+type PersonPayload = CreateHouseholdBundleInput["persons"][number];
+type FamilyBenefitPayload = NonNullable<CreateHouseholdBundleInput["familyBenefits"]>[number];
+type LandDetailsPayload = NonNullable<CreateHouseholdBundleInput["landDetails"]>;
+type ValuationPayload = NonNullable<CreateHouseholdBundleInput["valuation"]>;
 
 function flattenHouseholdRows(households: Awaited<ReturnType<typeof householdService.list>>) {
   return households.flatMap((household) =>
@@ -545,64 +687,116 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
   }
 
   const workbook = XLSX.read(request.file.buffer, { type: "buffer" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(sheet);
+  const rows = chooseImportRows(workbook);
 
   const grouped = new Map<string, Record<string, string | number>[]>();
   rows.forEach((row) => {
-    const houseId = String(row["House ID"] ?? "").trim();
+    const houseId = normalizeHouseId(row["House ID"]);
     if (!houseId) return;
     grouped.set(houseId, [...(grouped.get(houseId) ?? []), row]);
   });
 
-  let importedHouseholds = 0;
+  const clusterMap = new Map<string, string[]>();
+  for (const houseId of grouped.keys()) {
+    const root = rootHouseId(houseId);
+    clusterMap.set(root, [...(clusterMap.get(root) ?? []), houseId]);
+  }
 
+  const baseOwners = new Map<string, Record<string, string | number>>();
   for (const [houseId, groupRows] of grouped.entries()) {
-    const householdId = randomUUID();
-    const familyBenefits = new Map<string, "INDIVIDUAL_PLOT" | "LUMPSUM_AMOUNT">();
+    const owner = groupRows.find((row) => {
+      const relation = normalizeLoose(row["Relation"]);
+      return relationLabelMap[relation] === "PRIMARY_LAND_OWNER" || String(row["Relation"] ?? "").trim().toUpperCase() === "PRIMARY_LAND_OWNER";
+    });
+    if (owner) {
+      baseOwners.set(rootHouseId(houseId), owner);
+    }
+  }
 
-    groupRows.forEach((row) => {
-      const familyGroupCode = String(row["Family ID"] ?? "F1").toUpperCase();
-      const benefitType = String(row["Benefit Type"] ?? "").toUpperCase();
+  const existingResult = await pool.query<{ id: string; village_id: string; house_id: string }>(
+    "select id, village_id, house_id from households where house_id = any($1::text[])",
+    [[...grouped.keys()]],
+  );
+  const existingByHouseId = new Map(
+    existingResult.rows.map((row) => [row.house_id, { id: row.id, villageId: row.village_id }]),
+  );
 
-      if ((benefitType === "INDIVIDUAL_PLOT" || benefitType === "LUMPSUM_AMOUNT") && !familyBenefits.has(familyGroupCode)) {
-        familyBenefits.set(familyGroupCode, benefitType);
-      }
+  let importedHouseholds = 0;
+  const skippedHouseholds: string[] = [];
+
+  for (const [houseId, originalRows] of grouped.entries()) {
+    const root = rootHouseId(houseId);
+    const existingBundle = existingByHouseId.get(houseId);
+    const householdId = existingBundle?.id ?? randomUUID();
+    const linkedIds = (clusterMap.get(root) ?? []).filter((id) => id !== houseId);
+    const hasMultipleHouseIds = (clusterMap.get(root)?.length ?? 0) > 1;
+
+    const groupRows = [...originalRows];
+    const hasPrimaryOwner = groupRows.some((row) => {
+      const relation = normalizeLoose(row["Relation"]);
+      return relationLabelMap[relation] === "PRIMARY_LAND_OWNER" || String(row["Relation"] ?? "").trim().toUpperCase() === "PRIMARY_LAND_OWNER";
     });
 
-    await householdService.create({
-      household: {
-        id: householdId,
-        villageId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        houseId,
-        linkedHouseIds: String(groupRows[0]?.["Linked House IDs"] ?? "").trim() || undefined,
-        ownershipPattern: optionalUpperValue(String(groupRows[0]?.["Ownership Pattern"] ?? "SINGLE_HOUSE"), [
-          "SINGLE_HOUSE",
-          "MULTIPLE_HOUSE_IDS",
-          "HOUSE_AND_PLOT",
-          "MULTIPLE_HOUSE_IDS_AND_PLOT",
-        ] as const),
-        status: "DRAFT",
-        isLocked: false,
-      },
-      persons: groupRows.map((row) => ({
+    if (!hasPrimaryOwner) {
+      const fallbackOwner = baseOwners.get(root);
+      if (!fallbackOwner) {
+        skippedHouseholds.push(houseId);
+        continue;
+      }
+
+      groupRows.unshift({
+        ...fallbackOwner,
+        "House ID": houseId,
+        "Family ID": "F1",
+        Dependent: "Primary",
+        "Benefit Type": fallbackOwner["Benefit Type"] || "Individual Plot",
+      });
+    }
+
+    const seenKeys = new Set<string>();
+    const persons: PersonPayload[] = groupRows.flatMap((row) => {
+      const fullName = normalizeText(row["Name"]);
+      if (!fullName) return [];
+
+      const strictRelation = String(row["Relation"] ?? "").trim().toUpperCase();
+      const mappedRelation = (relationLabelMap[normalizeLoose(row["Relation"])] ??
+        strictRelation ??
+        "OTHER") as PersonPayload["relationToLandOwner"];
+      const age = parseOptionalNumber(row["Age"]);
+      const familyGroupCode = normalizeText(row["Family ID"]).toUpperCase() || "F1";
+      const maritalStatus = optionalUpperValue(String(row["Marital Status"] ?? ""), [
+        "MINOR",
+        "UNMARRIED",
+        "MARRIED",
+        "WIDOWED",
+        "DIVORCED",
+      ] as const) ?? mapMaritalStatus(row["Marital Status"], age);
+      const personKey = `${fullName.toLowerCase()}|${mappedRelation}|${familyGroupCode}`;
+
+      if (seenKeys.has(personKey)) return [];
+      seenKeys.add(personKey);
+
+      const gender: PersonPayload["gender"] = normalizeLoose(row["Gender"]).startsWith("female")
+        ? "FEMALE"
+        : normalizeLoose(row["Gender"]).startsWith("male")
+          ? "MALE"
+          : "OTHER";
+
+      return [{
         id: randomUUID(),
         householdId,
-        fullName: String(row["Name"] ?? ""),
-        relationToLandOwner: String(row["Relation"] ?? "OTHER") as never,
-        gender: (String(row["Gender"] ?? "OTHER").toUpperCase() as "MALE" | "FEMALE" | "OTHER"),
-        age: row["Age"] ? Number(row["Age"]) : undefined,
-        maritalStatus: optionalUpperValue(String(row["Marital Status"] ?? ""), [
-          "MINOR",
-          "UNMARRIED",
-          "MARRIED",
-          "WIDOWED",
-          "DIVORCED",
-        ] as const),
+        fullName,
+        relationToLandOwner: mappedRelation,
+        gender,
+        age,
+        maritalStatus,
         marriageDate:
-          ["UNMARRIED", "MINOR"].includes(String(row["Marital Status"] ?? "").toUpperCase())
+          maritalStatus === "UNMARRIED" ||
+          maritalStatus === "MINOR" ||
+          mappedRelation === "PRIMARY_LAND_OWNER" ||
+          mappedRelation === "PRIMARY_LAND_OWNER_SPOUSE"
             ? undefined
-            : (String(row["Marriage Date"] ?? "") || undefined),
+            : toDateString(row["Marriage Date"]),
         religion: optionalUpperValue(String(row["Religion"] ?? "OTHER"), [
           "HINDU",
           "MUSLIM",
@@ -611,15 +805,18 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
           "BUDDHIST",
           "JAIN",
           "OTHER",
-        ] as const),
+        ] as const) ?? "HINDU",
         casteCategory: optionalUpperValue(String(row["Category"] ?? "OTHERS"), [
           "GENERAL",
           "OBC",
           "SC",
           "ST",
           "OTHERS",
-        ] as const),
-        otherCasteCategoryDetail: String(row["Category Detail"] ?? "").trim() || undefined,
+        ] as const) ?? "OBC",
+        otherCasteCategoryDetail:
+          normalizeText(row["Category Detail"]) ||
+          normalizeText(row["Category_1"]) ||
+          undefined,
         occupation: optionalUpperValue(String(row["Occupation"] ?? "OTHER"), [
           "EMPLOYED",
           "AGRICULTURE",
@@ -629,7 +826,7 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
           "MINOR",
           "UNEMPLOYED",
           "OTHER",
-        ] as const),
+        ] as const) ?? mapOccupation(row["Occupation"]),
         education: optionalUpperValue(String(row["Education"] ?? "OTHERS"), [
           "SCHOOL_GOING_CHILD",
           "LESS_THAN_10TH",
@@ -640,7 +837,7 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
           "DEGREE",
           "MASTERS",
           "OTHERS",
-        ] as const),
+        ] as const) ?? mapEducation(row["Education"], age),
         incomeRange: optionalUpperValue(String(row["Income Range"] ?? "0-5_LAKH"), [
           "0-5_LAKH",
           "5-10_LAKH",
@@ -648,38 +845,97 @@ excelRouter.post("/import-excel", upload.single("file"), async (request, respons
           "15-20_LAKH",
           "20-25_LAKH",
           "ABOVE_25_LAKH",
-        ] as const),
-        aadhaarNumber: String(row["Aadhaar Number"] ?? "").trim() || undefined,
-        familyGroupCode: String(row["Family ID"] ?? "F1").toUpperCase(),
+        ] as const) ?? mapIncomeRange(row["Income Range"]),
+        aadhaarNumber: normalizeText(row["Aadhaar Number"]) || undefined,
+        familyGroupCode,
         includeInSurvey: true,
-        dependentOnLandOwner: String(row["Dependent"] ?? "NO").toUpperCase() === "YES",
-      })),
-      familyBenefits: [...familyBenefits.entries()].map(([familyGroupCode, benefitType]) => ({
+        dependentOnLandOwner:
+          familyGroupCode === "F1"
+            ? normalizeLoose(row["Dependent"]) === "dependent" || normalizeLoose(row["Dependent"]) === "yes"
+            : false,
+      }];
+    });
+
+    const familyCodes = [...new Set(persons.map((person) => person.familyGroupCode).filter(Boolean))];
+    const familyBenefits: FamilyBenefitPayload[] = familyCodes.map((familyGroupCode) => {
+      const benefitRow = groupRows.find((row) => (normalizeText(row["Family ID"]).toUpperCase() || "F1") === familyGroupCode);
+      const benefitType =
+        optionalUpperValue(String(benefitRow?.["Benefit Type"] ?? ""), ["INDIVIDUAL_PLOT", "LUMPSUM_AMOUNT"] as const) ??
+        mapBenefitType(benefitRow?.["Benefit Type"]) ??
+        (familyGroupCode === "F1" ? "INDIVIDUAL_PLOT" : "LUMPSUM_AMOUNT");
+
+      return {
         familyGroupCode: familyGroupCode as "F1" | "F2" | "F3" | "F4" | "F5",
         benefitType,
-      })),
-      landDetails: {
-        builtUpAreaSqm: Number(groupRows[0]?.["Built-up Area"] ?? 0),
-        openLandAreaSqm: Number(groupRows[0]?.["Empty Plot Area"] ?? 0),
-        structureType: String(groupRows[0]?.["Structure Type"] ?? "") || undefined,
-        cattleShedAvailable:
-          String(groupRows[0]?.["Cattle Shed Available"] ?? "NO").toUpperCase() === "YES" ? "YES" : "NO",
-      },
-      valuation: {
-        structureValue: Number(groupRows[0]?.["Construction Value"] ?? 0),
-        landValue: Number(groupRows[0]?.["Land Value"] ?? 0),
-        treeAssetValue: 0,
-        shiftingAllowance: 0,
-        subsistenceAllowance: 0,
-        otherAssistance: 0,
-      },
+      };
     });
-    importedHouseholds += 1;
+
+    const firstStructureRow =
+      groupRows.find((row) =>
+        normalizeText(row["Structure Type"]) ||
+        normalizeText(row["Built-up Area"]) ||
+        normalizeText(row["Empty Plot Area"]) ||
+        normalizeText(row["Construction Value"]) ||
+        normalizeText(row["Land Value"]),
+      ) ?? groupRows[0];
+
+    const household: HouseholdPayload = {
+        id: householdId,
+        villageId: existingBundle?.villageId ?? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        houseId,
+        linkedHouseIds:
+          normalizeText(groupRows[0]?.["Linked House IDs"]) ||
+          (linkedIds.length ? linkedIds.join(", ") : undefined),
+        ownershipPattern:
+          optionalUpperValue(String(groupRows[0]?.["Ownership Pattern"] ?? ""), [
+            "SINGLE_HOUSE",
+            "MULTIPLE_HOUSE_IDS",
+            "HOUSE_AND_PLOT",
+            "MULTIPLE_HOUSE_IDS_AND_PLOT",
+          ] as const) ?? (hasMultipleHouseIds ? "MULTIPLE_HOUSE_IDS" : "SINGLE_HOUSE"),
+        status: "DRAFT" as const,
+        isLocked: false as const,
+    };
+    const landDetails: LandDetailsPayload = {
+      builtUpAreaSqm: parseNumberOrZero(firstStructureRow?.["Built-up Area"]),
+      openLandAreaSqm: parseNumberOrZero(firstStructureRow?.["Empty Plot Area"]),
+      structureType: mapStructureType(firstStructureRow?.["Structure Type"]),
+      cattleShedAvailable: normalizeLoose(firstStructureRow?.["Cattle Shed Available"]) === "yes" ? "YES" : "NO",
+    };
+    const valuation: ValuationPayload = {
+      structureValue: parseNumberOrZero(firstStructureRow?.["Construction Value"]),
+      landValue: parseNumberOrZero(firstStructureRow?.["Land Value"]),
+      treeAssetValue: 0,
+      shiftingAllowance: 0,
+      subsistenceAllowance: 0,
+      otherAssistance: 0,
+    };
+    const payload: CreateHouseholdBundleInput = {
+      household,
+      persons,
+      familyBenefits,
+      landDetails,
+      valuation,
+    };
+
+    try {
+      if (existingBundle) {
+        await householdService.update(payload);
+      } else {
+        await householdService.create(payload);
+      }
+
+      importedHouseholds += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown import error";
+      skippedHouseholds.push(`${houseId}: ${message}`);
+    }
   }
 
   response.json({
     message: "Excel Imported Successfully",
     importedHouseholds,
     importedRows: rows.length,
+    skippedHouseholds,
   });
 });

@@ -1,5 +1,6 @@
 import XLSX from "xlsx";
 import { randomUUID } from "node:crypto";
+import type { CreateHouseholdBundleInput } from "../modules/households/household.schemas.js";
 import { householdService } from "../modules/households/household.service.js";
 import { pool } from "../db/client.js";
 
@@ -10,6 +11,12 @@ if (!filePath) {
 }
 
 type SheetRow = Record<string, string | number>;
+type HouseholdPayload = CreateHouseholdBundleInput["household"];
+type PersonPayload = CreateHouseholdBundleInput["persons"][number];
+type FamilyBenefitPayload = NonNullable<CreateHouseholdBundleInput["familyBenefits"]>[number];
+type LandDetailsPayload = NonNullable<CreateHouseholdBundleInput["landDetails"]>;
+type ValuationPayload = NonNullable<CreateHouseholdBundleInput["valuation"]>;
+type FamilyGroupCode = FamilyBenefitPayload["familyGroupCode"];
 
 function normalizeHouseId(value: string | number | undefined): string {
   const raw = String(value ?? "").trim();
@@ -19,6 +26,18 @@ function normalizeHouseId(value: string | number | undefined): string {
 
 function normalizeText(value: string | number | undefined): string {
   return String(value ?? "").trim();
+}
+
+function parseOptionalNumber(value: string | number | undefined): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const text = normalizeText(value);
+  if (!text) return undefined;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseNumberOrZero(value: string | number | undefined): number {
+  return parseOptionalNumber(value) ?? 0;
 }
 
 function normalizeLoose(value: string | number | undefined): string {
@@ -146,8 +165,13 @@ async function main() {
     if (owner) baseOwners.set(rootHouseId(houseId), owner);
   }
 
-  const existing = await householdService.list();
-  const existingByHouseId = new Map(existing.map((bundle) => [bundle.household.houseId, bundle]));
+  const existingResult = await pool.query<{ id: string; village_id: string; house_id: string }>(
+    "select id, village_id, house_id from households where house_id = any($1::text[])",
+    [[...grouped.keys()]],
+  );
+  const existingByHouseId = new Map(
+    existingResult.rows.map((row) => [row.house_id, { id: row.id, villageId: row.village_id }]),
+  );
 
   let created = 0;
   let updated = 0;
@@ -156,7 +180,7 @@ async function main() {
   for (const [houseId, groupRows] of grouped.entries()) {
     const root = rootHouseId(houseId);
     const existingBundle = existingByHouseId.get(houseId);
-    const householdId = existingBundle?.household.id ?? randomUUID();
+    const householdId = existingBundle?.id ?? randomUUID();
     const linkedIds = (clusterMap.get(root) ?? []).filter((id) => id !== houseId);
     const hasMultipleHouseIds = (clusterMap.get(root)?.length ?? 0) > 1;
 
@@ -182,13 +206,12 @@ async function main() {
     }
 
     const seenKeys = new Set<string>();
-    const persons = normalizedRows.flatMap((row) => {
+    const persons: PersonPayload[] = normalizedRows.flatMap((row) => {
       const fullName = normalizeText(row["Name"]);
       if (!fullName) return [];
 
-      const relation = relationMap[normalizeLoose(row["Relation"])] ?? "OTHER";
-      const ageText = normalizeText(row["Age"]);
-      const age = ageText ? Number(ageText) : undefined;
+      const relation = (relationMap[normalizeLoose(row["Relation"])] ?? "OTHER") as PersonPayload["relationToLandOwner"];
+      const age = parseOptionalNumber(row["Age"]);
       const familyGroupCode = normalizeText(row["Family ID"]).toUpperCase() || "F1";
       const maritalStatus = mapMaritalStatus(row["Marital Status"], age);
       const personKey = `${fullName.toLowerCase()}|${relation}|${familyGroupCode}`;
@@ -196,17 +219,19 @@ async function main() {
       if (seenKeys.has(personKey)) return [];
       seenKeys.add(personKey);
 
+      const gender: PersonPayload["gender"] = normalizeLoose(row["Gender"]).startsWith("female")
+        ? "FEMALE"
+        : normalizeLoose(row["Gender"]).startsWith("male")
+          ? "MALE"
+          : "OTHER";
+
       return [
         {
           id: randomUUID(),
           householdId,
           fullName,
           relationToLandOwner: relation,
-          gender: normalizeLoose(row["Gender"]).startsWith("female")
-            ? "FEMALE"
-            : normalizeLoose(row["Gender"]).startsWith("male")
-              ? "MALE"
-              : "OTHER",
+          gender,
           age,
           maritalStatus,
           marriageDate:
@@ -229,8 +254,14 @@ async function main() {
       ];
     });
 
-    const familyCodes = [...new Set(persons.map((person) => person.familyGroupCode).filter(Boolean))];
-    const familyBenefits = familyCodes.map((familyGroupCode) => {
+    const familyCodes = [
+      ...new Set(
+        persons
+          .map((person) => person.familyGroupCode)
+          .filter((code): code is FamilyGroupCode => ["F1", "F2", "F3", "F4", "F5"].includes(code ?? "")),
+      ),
+    ];
+    const familyBenefits: FamilyBenefitPayload[] = familyCodes.map((familyGroupCode) => {
       const matchingRow = normalizedRows.find(
         (row) =>
           (normalizeText(row["Family ID"]).toUpperCase() || "F1") === familyGroupCode &&
@@ -240,7 +271,7 @@ async function main() {
       return {
         familyGroupCode,
         benefitType: matchingRow
-          ? mapBenefit(matchingRow["Benefit Type"])
+          ? (mapBenefit(matchingRow["Benefit Type"]) ?? (familyGroupCode === "F1" ? "INDIVIDUAL_PLOT" : "LUMPSUM_AMOUNT"))
           : familyGroupCode === "F1"
             ? "INDIVIDUAL_PLOT"
             : "LUMPSUM_AMOUNT",
@@ -257,54 +288,62 @@ async function main() {
           normalizeText(row["Land Value"]),
       ) ?? normalizedRows[0];
 
-    const payload = {
-      household: {
+    const household: HouseholdPayload = {
         id: householdId,
-        villageId: existingBundle?.household.villageId ?? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        villageId: existingBundle?.villageId ?? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         houseId,
         linkedHouseIds: linkedIds.length ? linkedIds.join(", ") : undefined,
         ownershipPattern: hasMultipleHouseIds ? "MULTIPLE_HOUSE_IDS" : "SINGLE_HOUSE",
         surveyPropertyType: "RESIDENTIAL" as const,
         hasResidentFamily: true,
-        locality: existingBundle?.household.locality,
+        locality: undefined,
         status: "DRAFT" as const,
         isLocked: false,
-      },
+    };
+    const landDetails: LandDetailsPayload = {
+      builtUpAreaSqm: parseNumberOrZero(firstStructureRow["Built-up Area"]),
+      openLandAreaSqm: parseNumberOrZero(firstStructureRow["Empty Plot Area"]),
+      structureType: mapStructureType(firstStructureRow["Structure Type"]),
+      cattleShedAvailable: normalizeLoose(firstStructureRow["Cattle Shed Available"]) === "yes" ? "YES" : "NO",
+    };
+    const valuation: ValuationPayload = {
+      structureValue: parseNumberOrZero(firstStructureRow["Construction Value"]),
+      landValue: parseNumberOrZero(firstStructureRow["Land Value"]),
+      treeAssetValue: 0,
+      shiftingAllowance: 0,
+      subsistenceAllowance: 0,
+      otherAssistance: 0,
+    };
+    const payload: CreateHouseholdBundleInput = {
+      household,
       persons,
       familyBenefits,
-      landDetails: {
-        builtUpAreaSqm: Number(firstStructureRow["Built-up Area"] || 0),
-        openLandAreaSqm: Number(firstStructureRow["Empty Plot Area"] || 0),
-        structureType: mapStructureType(firstStructureRow["Structure Type"]),
-        cattleShedAvailable: normalizeLoose(firstStructureRow["Cattle Shed Available"]) === "yes" ? "YES" : "NO",
-      },
-      valuation: {
-        structureValue: Number(firstStructureRow["Construction Value"] || 0),
-        landValue: Number(firstStructureRow["Land Value"] || 0),
-        treeAssetValue: 0,
-        shiftingAllowance: 0,
-        subsistenceAllowance: 0,
-        otherAssistance: 0,
-      },
+      landDetails,
+      valuation,
     };
 
-    if (existingBundle) {
-      await householdService.update(payload);
-      updated += 1;
-    } else {
-      await householdService.create(payload);
-      created += 1;
+    try {
+      if (existingBundle) {
+        await householdService.update(payload);
+        updated += 1;
+      } else {
+        await householdService.create(payload);
+        created += 1;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown import error";
+      skipped.push(`${houseId}: ${message}`);
     }
   }
 
-  const finalList = await householdService.list();
+  const finalCount = await pool.query<{ count: string }>("select count(*)::text as count from households");
   console.log(
     JSON.stringify(
       {
         created,
         updated,
         skipped,
-        totalHouseholds: finalList.length,
+        totalHouseholds: Number(finalCount.rows[0]?.count ?? 0),
         importedHouseIds: [...grouped.keys()],
       },
       null,
